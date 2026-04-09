@@ -1,100 +1,116 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Board, Team, User } from "@/structs/types";
+import { UserData } from "./context";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface User { id: string; name: string; email: string; }
+interface Team { id: string; name: string; description: string; created_by: string; created_at: string; }
+interface Board { id: string; name: string; destination_id: string; }
+interface Task {
+    id: string; title: string; priority: string;
+    board_id: string; column: { id: string; name: string };
+    created_at: string; due_date: string;
+}
+interface PaginatedTasks { data: Task[]; pagination: { total: number } }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const getInitials = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
+const getInitials = (name: string) => name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
+const isOverdue = (due: string) => due && !due.startsWith("0001") && new Date(due) < new Date();
+const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+};
 
-const getToken = () =>
-    typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
+// ─── Animated counter ─────────────────────────────────────────────────────────
+const AnimCounter = ({ value, duration = 1100 }: { value: number; duration?: number }) => {
+    const [n, setN] = useState(0);
+    const prev = useRef(0);
+    useEffect(() => {
+        const start = prev.current, end = value;
+        const step = (end - start) / (duration / 16);
+        let cur = start;
+        const t = setInterval(() => {
+            cur += step;
+            if ((step >= 0 && cur >= end) || (step < 0 && cur <= end)) { setN(end); clearInterval(t); }
+            else setN(Math.round(cur));
+        }, 16);
+        prev.current = end;
+        return () => clearInterval(t);
+    }, [value, duration]);
+    return <>{n}</>;
+};
 
-const authHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getToken()}`,
-});
+// ─── Ring chart ───────────────────────────────────────────────────────────────
+const Ring = ({ pct, color, size = 96, stroke = 8 }: { pct: number; color: string; size?: number; stroke?: number }) => {
+    const r = (size - stroke * 2) / 2;
+    const circ = 2 * Math.PI * r;
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#27272a" strokeWidth={stroke} />
+            <motion.circle
+                cx={size / 2} cy={size / 2} r={r} fill="none"
+                stroke={color} strokeWidth={stroke} strokeLinecap="round"
+                strokeDasharray={circ}
+                initial={{ strokeDashoffset: circ }}
+                animate={{ strokeDashoffset: circ - (pct / 100) * circ }}
+                transition={{ duration: 1.3, ease: "easeOut", delay: 0.4 }}
+            />
+        </svg>
+    );
+};
 
-const BOARD_COLORS = [
-    "from-violet-500/20 to-violet-600/5 border-violet-500/20",
-    "from-cyan-500/20 to-cyan-600/5 border-cyan-500/20",
-    "from-fuchsia-500/20 to-fuchsia-600/5 border-fuchsia-500/20",
-    "from-emerald-500/20 to-emerald-600/5 border-emerald-500/20",
-    "from-orange-500/20 to-orange-600/5 border-orange-500/20",
-    "from-rose-500/20 to-rose-600/5 border-rose-500/20",
-];
+// ─── Mini bar ─────────────────────────────────────────────────────────────────
+const Bar = ({ value, max, color }: { value: number; max: number; color: string }) => (
+    <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+        <motion.div
+            className="h-full rounded-full"
+            style={{ backgroundColor: color }}
+            initial={{ width: 0 }}
+            animate={{ width: max > 0 ? `${(value / max) * 100}%` : 0 }}
+            transition={{ duration: 0.9, ease: "easeOut", delay: 0.5 }}
+        />
+    </div>
+);
 
-const DOT_COLORS = [
-    "bg-violet-400",
-    "bg-cyan-400",
-    "bg-fuchsia-400",
-    "bg-emerald-400",
-    "bg-orange-400",
-    "bg-rose-400",
-];
-
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
-const Sidebar = ({
-    user,
-    teams,
-    boards,
-    selectedTeam,
-    onSelectTeam,
-    collapsed,
-    onCollapse,
-}: {
-    user: User | null;
-    teams: Team[];
-    boards: Board[];
-    selectedTeam: Team | null;
-    onSelectTeam: (team: Team) => void;
-    collapsed: boolean;
-    onCollapse: (v: boolean) => void;
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+const Sidebar = ({ user, teams, collapsed, onCollapse }: {
+    user: User | null; teams: Team[];
+    collapsed: boolean; onCollapse: (v: boolean) => void;
 }) => {
     const router = useRouter();
-    const teamBoards = boards.filter((b) => b.destination_id === selectedTeam?.id);
-
-    const handleLogout = () => {
-        localStorage.clear();
-        router.push("/auth/login");
+    const nav = [
+        { icon: "home", label: "Dashboard", href: "/dashboard", active: true },
+        { icon: "grid", label: "All Boards", href: "/all-boards", active: false },
+        { icon: "user", label: "My Tasks", href: "/tasks", active: false },
+        { icon: "team", label: "Teams", href: "/teams", active: false },
+    ];
+    const icons: Record<string, React.ReactNode> = {
+        home: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5.5L8 2l6 3.5V14H2V5.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M6 14v-4h4v4" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>,
+        grid: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /></svg>,
+        user: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.3" /><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>,
+        team: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3" /><circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" opacity="0.6" /><path d="M1 14c0-2.761 2.239-4 5-4s5 1.239 5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><path d="M12 10c1.657 0 3 .895 3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" opacity="0.6" /></svg>,
     };
 
     return (
         <motion.aside
-            animate={{ width: collapsed ? 68 : 256 }}
+            animate={{ width: collapsed ? 68 : 240 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className="relative flex-shrink-0 h-screen bg-zinc-950 border-r border-zinc-800/60 flex flex-col overflow-hidden z-20"
         >
-            {/* Logo */}
+            {/* Logo row */}
             <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-800/60 flex-shrink-0">
-                <AnimatePresence>
-                    {!collapsed && (
-                        <motion.div
-                            className="flex items-center gap-2.5"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                    <rect x="1" y="1" width="5" height="5" rx="1" fill="white" opacity="0.9" />
-                                    <rect x="8" y="1" width="5" height="5" rx="1" fill="white" opacity="0.5" />
-                                    <rect x="1" y="8" width="5" height="5" rx="1" fill="white" opacity="0.5" />
-                                    <rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity="0.9" />
-                                </svg>
-                            </div>
-                            <span className="text-white font-bold text-sm tracking-tight whitespace-nowrap">
-                                TaskFlow
-                            </span>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {collapsed && (
+                {collapsed ? (
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center mx-auto">
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <rect x="1" y="1" width="5" height="5" rx="1" fill="white" opacity="0.9" />
@@ -103,185 +119,73 @@ const Sidebar = ({
                             <rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity="0.9" />
                         </svg>
                     </div>
+                ) : (
+                    <AnimatePresence>
+                        <motion.div className="flex items-center gap-2.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <rect x="1" y="1" width="5" height="5" rx="1" fill="white" opacity="0.9" />
+                                    <rect x="8" y="1" width="5" height="5" rx="1" fill="white" opacity="0.5" />
+                                    <rect x="1" y="8" width="5" height="5" rx="1" fill="white" opacity="0.5" />
+                                    <rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity="0.9" />
+                                </svg>
+                            </div>
+                            <span className="text-white font-bold text-sm tracking-tight whitespace-nowrap">TaskFlow</span>
+                        </motion.div>
+                    </AnimatePresence>
                 )}
-
                 {!collapsed && (
-                    <button
-                        onClick={() => onCollapse(true)}
-                        className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 transition-all"
-                    >
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M9 2L5 7l4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                    <button onClick={() => onCollapse(true)} className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 transition-all">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L5 7l4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     </button>
                 )}
             </div>
 
-            {/* Collapsed expand button */}
             {collapsed && (
-                <button
-                    onClick={() => onCollapse(false)}
-                    className="absolute top-4 -right-3 w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-all shadow-md z-30"
-                >
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                        <path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                <button onClick={() => onCollapse(false)} className="absolute top-4 -right-3 w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white z-30 shadow-md">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </button>
             )}
 
-            {/* Nav content */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-6 scrollbar-hide">
+            {/* Nav */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-1 scrollbar-hide">
+                {nav.map((item) => (
+                    <Link key={item.label} href={item.href}>
+                        <motion.div
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${item.active ? "bg-violet-500/10 text-violet-300" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"}`}
+                            whileHover={{ x: collapsed ? 0 : 2 }}
+                        >
+                            <span className="flex-shrink-0">{icons[item.icon]}</span>
+                            <AnimatePresence>
+                                {!collapsed && (
+                                    <motion.span className="text-sm font-medium whitespace-nowrap" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }}>
+                                        {item.label}
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
+                        </motion.div>
+                    </Link>
+                ))}
 
-                {/* Main nav */}
-                <div className="space-y-1">
-                    {[
-                        {
-                            icon: (
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path d="M2 5.5L8 2l6 3.5V14H2V5.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                                    <path d="M6 14v-4h4v4" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                                </svg>
-                            ),
-                            label: "Dashboard",
-                            active: true,
-                            href: "/dashboard",
-                        },
-                        {
-                            icon: (
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-                                    <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-                                    <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-                                    <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-                                </svg>
-                            ),
-                            label: "All Boards",
-                            active: false,
-                            href: "/dashboard",
-                        },
-                        {
-                            icon: (
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.3" />
-                                    <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                                </svg>
-                            ),
-                            label: "My Tasks",
-                            active: false,
-                            href: "/tasks",
-                        },
-                    ].map((item) => (
-                        <Link key={item.label} href={item.href}>
-                            <motion.div
-                                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${item.active
-                                    ? "bg-violet-500/10 text-violet-300"
-                                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-                                    }`}
-                                whileHover={{ x: collapsed ? 0 : 2 }}
-                            >
-                                <span className="flex-shrink-0">{item.icon}</span>
-                                <AnimatePresence>
-                                    {!collapsed && (
-                                        <motion.span
-                                            className="text-sm font-medium whitespace-nowrap overflow-hidden"
-                                            initial={{ opacity: 0, width: 0 }}
-                                            animate={{ opacity: 1, width: "auto" }}
-                                            exit={{ opacity: 0, width: 0 }}
-                                            transition={{ duration: 0.2 }}
-                                        >
-                                            {item.label}
-                                        </motion.span>
-                                    )}
-                                </AnimatePresence>
-                            </motion.div>
-                        </Link>
-                    ))}
-                </div>
-
-                {/* Teams */}
-                {!collapsed && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                    >
-                        <div className="flex items-center justify-between px-3 mb-2">
-                            <span className="text-xs font-semibold text-zinc-600 uppercase tracking-widest">
-                                Teams
-                            </span>
-                            <Link href="/teams/new">
-                                <motion.button
-                                    className="w-5 h-5 rounded-md flex items-center justify-center text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                >
-                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                    </svg>
-                                </motion.button>
+                {/* Teams list */}
+                {!collapsed && teams.length > 0 && (
+                    <motion.div className="pt-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <p className="text-xs font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Teams</p>
+                        {teams.slice(0, 5).map((team) => (
+                            <Link key={team.id} href="/all-boards">
+                                <motion.div className="flex items-center gap-3 px-3 py-2 rounded-xl text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/40 transition-all cursor-pointer" whileHover={{ x: 2 }}>
+                                    <div className="w-5 h-5 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-white font-bold flex-shrink-0" style={{ fontSize: "8px" }}>
+                                        {getInitials(team.name)}
+                                    </div>
+                                    <span className="text-xs truncate">{team.name}</span>
+                                </motion.div>
                             </Link>
-                        </div>
-
-                        <div className="space-y-0.5">
-                            {teams.length === 0 ? (
-                                <p className="text-xs text-zinc-700 px-3 py-2">No teams yet</p>
-                            ) : (
-                                teams.map((team, i) => (
-                                    <motion.button
-                                        key={team.id}
-                                        onClick={() => onSelectTeam(team)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${selectedTeam?.id === team.id
-                                            ? "bg-zinc-800/80 text-white"
-                                            : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                                            }`}
-                                        whileHover={{ x: 2 }}
-                                    >
-                                        <div
-                                            className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${DOT_COLORS[i % DOT_COLORS.length].replace("bg-", "bg-").replace("-400", "-500")
-                                                }`}
-                                            style={{ fontSize: "10px" }}
-                                        >
-                                            {getInitials(team.name)}
-                                        </div>
-                                        <span className="text-sm font-medium truncate">{team.name}</span>
-                                        {selectedTeam?.id === team.id && (
-                                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="ml-auto flex-shrink-0 text-violet-400">
-                                                <path d="M2 7l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        )}
-                                    </motion.button>
-                                ))
-                            )}
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* Boards under selected team */}
-                {!collapsed && selectedTeam && teamBoards.length > 0 && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <div className="px-3 mb-2">
-                            <span className="text-xs font-semibold text-zinc-600 uppercase tracking-widest">
-                                Boards
-                            </span>
-                        </div>
-                        <div className="space-y-0.5">
-                            {teamBoards.map((board, i) => (
-                                <Link key={board.id} href={`/boards/${board.id}`}>
-                                    <motion.div
-                                        className="flex items-center gap-3 px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40 transition-all cursor-pointer"
-                                        whileHover={{ x: 2 }}
-                                    >
-                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${DOT_COLORS[i % DOT_COLORS.length]}`} />
-                                        <span className="text-sm truncate">{board.name}</span>
-                                    </motion.div>
-                                </Link>
-                            ))}
-                        </div>
+                        ))}
                     </motion.div>
                 )}
             </div>
 
-            {/* User profile */}
+            {/* User */}
             <div className="flex-shrink-0 border-t border-zinc-800/60 p-3">
                 <div className={`flex items-center gap-3 px-2 py-2 rounded-xl ${!collapsed ? "hover:bg-zinc-800/40" : ""} transition-all cursor-pointer group`}>
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -289,28 +193,15 @@ const Sidebar = ({
                     </div>
                     <AnimatePresence>
                         {!collapsed && (
-                            <motion.div
-                                className="flex-1 min-w-0"
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
-                                transition={{ duration: 0.2 }}
-                            >
+                            <motion.div className="flex-1 min-w-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                 <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
                                 <p className="text-zinc-600 text-xs truncate">{user?.email}</p>
                             </motion.div>
                         )}
                     </AnimatePresence>
                     {!collapsed && (
-                        <motion.button
-                            onClick={handleLogout}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-700 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
-                            whileHover={{ scale: 1.1 }}
-                            title="Sign out"
-                        >
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                <path d="M5 2H2v10h3M9 4l3 3-3 3M12 7H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                        <motion.button onClick={() => { localStorage.clear(); router.push("/login"); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-700 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100" title="Sign out">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2v10h3M9 4l3 3-3 3M12 7H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </motion.button>
                     )}
                 </div>
@@ -319,568 +210,471 @@ const Sidebar = ({
     );
 };
 
-// ─── Board card ───────────────────────────────────────────────────────────────
-const BoardCard = ({ board, index, teamName }: { board: Board; index: number; teamName: string }) => {
-    const colorClass = BOARD_COLORS[index % BOARD_COLORS.length];
-    const dotClass = DOT_COLORS[index % DOT_COLORS.length];
-
-    return (
-        <Link href={`/boards/${board.id}`}>
-            <motion.div
-                className={`group relative rounded-2xl p-5 bg-gradient-to-br border cursor-pointer overflow-hidden transition-all duration-300 ${colorClass}`}
-                whileHover={{ y: -4, scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            >
-                {/* Hover shimmer */}
-                <motion.div
-                    className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100"
-                    animate={{ x: ["-100%", "200%"] }}
-                    transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 0.5 }}
-                />
-
-                <div className="relative z-10">
-                    {/* Top row */}
-                    <div className="flex items-start justify-between mb-4">
-                        <div className={`w-9 h-9 rounded-xl bg-zinc-900/60 border border-zinc-800/60 flex items-center justify-center`}>
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                <rect x="2" y="2" width="5" height="5" rx="1" stroke="white" strokeWidth="1.2" opacity="0.7" />
-                                <rect x="9" y="2" width="5" height="5" rx="1" stroke="white" strokeWidth="1.2" opacity="0.4" />
-                                <rect x="2" y="9" width="5" height="5" rx="1" stroke="white" strokeWidth="1.2" opacity="0.4" />
-                                <rect x="9" y="9" width="5" height="5" rx="1" stroke="white" strokeWidth="1.2" opacity="0.7" />
-                            </svg>
-                        </div>
-                        <motion.div
-                            className="w-7 h-7 rounded-lg bg-zinc-900/40 border border-zinc-800/40 flex items-center justify-center text-zinc-600 group-hover:text-zinc-400 group-hover:border-zinc-700 transition-all"
-                            whileHover={{ rotate: 45 }}
-                        >
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <path d="M2.5 9.5L9.5 2.5M9.5 2.5H4M9.5 2.5V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </motion.div>
-                    </div>
-
-                    {/* Board name */}
-                    <h3 className="text-white font-semibold text-base mb-1 group-hover:text-white transition-colors">
-                        {board.name}
-                    </h3>
-                    <p className="text-zinc-600 text-xs mb-4 flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
-                        {teamName}
-                    </p>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-zinc-700 font-medium uppercase tracking-wider">Open board</span>
-                        <motion.svg
-                            width="14" height="14" viewBox="0 0 14 14" fill="none"
-                            className="text-zinc-700 group-hover:text-zinc-400 transition-colors"
-                            animate={{ x: [0, 3, 0] }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                            <path d="M2 7h10M7 3l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                        </motion.svg>
-                    </div>
-                </div>
-            </motion.div>
-        </Link>
-    );
-};
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-const EmptyBoards = ({ onCreateBoard }: { onCreateBoard: () => void }) => (
-    <motion.div
-        className="flex flex-col items-center justify-center py-20 px-6 text-center"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-    >
-        <motion.div
-            className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-5"
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        >
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <rect x="3" y="3" width="9" height="9" rx="2" stroke="#52525b" strokeWidth="1.5" />
-                <rect x="16" y="3" width="9" height="9" rx="2" stroke="#52525b" strokeWidth="1.5" />
-                <rect x="3" y="16" width="9" height="9" rx="2" stroke="#52525b" strokeWidth="1.5" />
-                <path d="M20.5 16v9M16 20.5h9" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-        </motion.div>
-        <h3 className="text-white font-semibold text-base mb-2">No boards yet</h3>
-        <p className="text-zinc-600 text-sm max-w-xs mb-6">
-            Create your first board to start managing tasks with your team.
-        </p>
-        <motion.button
-            onClick={onCreateBoard}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-        >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            Create board
-        </motion.button>
-    </motion.div>
-);
-
-// ─── Create board modal ───────────────────────────────────────────────────────
-const CreateBoardModal = ({
-    open,
-    onClose,
-    teams,
-    selectedTeam,
-    onCreated,
-}: {
-    open: boolean;
-    onClose: () => void;
-    teams: Team[];
-    selectedTeam: Team | null;
-    onCreated: (board: Board) => void;
-}) => {
-    const [name, setName] = useState("");
-    const [teamID, setTeamID] = useState(selectedTeam?.id ?? "");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+// ─── Main page ────────────────────────────────────────────────────────────────
+export default function DashboardPage() {
+    const router = useRouter();
+    const [userDetails, setUserDetails] = useContext(UserData);
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [user, setUser] = useState<User | null>(null);
+    const [boards, setBoards] = useState<Board[]>([]);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [collapsed, setCollapsed] = useState(false);
+    const [greeting, setGreeting] = useState("Good morning");
 
     useEffect(() => {
-        if (open) {
-            setName("");
-            setTeamID(selectedTeam?.id ?? teams[0]?.id ?? "");
-            setError("");
-        }
-    }, [open, selectedTeam, teams]);
+        const token = getToken(), ud = localStorage.getItem("user");
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name.trim() || !teamID) return;
-        setLoading(true);
-        setError("");
+        if (!token || !ud) { router.push("/login"); return; }
+        setUser(JSON.parse(ud));
+    }, [router]);
 
-        try {
-            const res = await fetch("http://localhost:8000/boards", {
-                method: "POST",
-                headers: authHeaders(),
-                body: JSON.stringify({ name: name.trim(), destination_id: teamID }),
-            });
-            const data = await res.json();
-            if (!res.ok) { setError(data.error || "Failed to create board"); return; }
-            onCreated(data);
-            onClose();
-        } catch {
-            setError("Something went wrong");
-        } finally {
-            setLoading(false);
-        }
+    useEffect(() => {
+        const h = new Date().getHours();
+        setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+    }, []);
+
+    useEffect(() => {
+        if (!user) return;
+        (async () => {
+            setLoading(true);
+            try {
+                const [tr, br] = await Promise.all([
+                    fetch("http://localhost:8000/teams", { headers: authHeaders() }),
+                    fetch("http://localhost:8000/boards?destination_id=" + user.id, { headers: authHeaders() }),
+                ]);
+                if (tr.status === 401) { router.push("/login"); return; }
+                const tl: Team[] = await tr.json().then((d) => Array.isArray(d) ? d : []);
+                const bl: Board[] = await br.json().then((d) => Array.isArray(d) ? d : []);
+                setTeams(tl); setBoards(bl);
+
+                if (bl.length > 0) {
+                    const results = await Promise.all(
+                        bl.map((b) => fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, { headers: authHeaders() })
+                            .then((r) => r.json() as Promise<PaginatedTasks>)
+                            .catch(() => ({ data: [] as Task[], pagination: { total: 0 } }))
+                        )
+                    );
+                    setTasks(results.flatMap((r) => r.data ?? []));
+                }
+            } finally { setLoading(false); }
+        })();
+    }, [user, router]);
+
+    console.log("boards:", boards)
+
+    // ── Computed stats ────────────────────────────────────────────────────────
+    const completed = tasks.filter((t) => t.column?.name?.toLowerCase() === "completed");
+    const inProgress = tasks.filter((t) => t.column?.name?.toLowerCase() === "in progress");
+    const todo = tasks.filter((t) => t.column?.name?.toLowerCase() === "todo");
+    const overdue = tasks.filter((t) => isOverdue(t.due_date));
+    const highPri = tasks.filter((t) => t.priority === "high");
+    const rate = tasks.length > 0 ? Math.round((completed.length / tasks.length) * 100) : 0;
+
+    const recentTasks = [...tasks]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 8);
+
+    const boardActivity = boards
+        .map((b) => ({ ...b, count: tasks.filter((t) => t.board_id === b.id).length }))
+        .sort((a, b) => b.count - a.count).slice(0, 5);
+
+    const priorityRows = [
+        { label: "High", val: highPri.length, color: "#f87171", dot: "bg-red-400" },
+        { label: "Medium", val: tasks.filter((t) => t.priority === "medium").length, color: "#fbbf24", dot: "bg-yellow-400" },
+        { label: "Low", val: tasks.filter((t) => t.priority === "low").length, color: "#34d399", dot: "bg-emerald-400" },
+    ];
+
+    const PALETTE = ["#a78bfa", "#67e8f9", "#f0abfc", "#6ee7b7", "#fbbf24"];
+
+    const COL_CFG: Record<string, { color: string; dot: string }> = {
+        "todo": { color: "text-zinc-500", dot: "bg-zinc-500" },
+        "in progress": { color: "text-violet-400", dot: "bg-violet-400" },
+        "completed": { color: "text-emerald-400", dot: "bg-emerald-400" },
     };
 
     return (
-        <AnimatePresence>
-            {open && (
-                <>
-                    <motion.div
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                    />
-                    <motion.div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                    >
-                        <motion.div
-                            className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl"
-                            initial={{ scale: 0.92, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.92, y: 20 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-white font-bold text-lg">New Board</h2>
-                                <motion.button
-                                    onClick={onClose}
-                                    className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all"
-                                    whileHover={{ rotate: 90 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                        <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                    </svg>
-                                </motion.button>
-                            </div>
-
-                            <AnimatePresence>
-                                {error && (
-                                    <motion.div
-                                        className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
-                                        initial={{ opacity: 0, y: -8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0 }}
-                                    >
-                                        {error}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
-                                        Board name
-                                    </label>
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="e.g. Sprint 4, Q1 Roadmap..."
-                                        required
-                                        className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-4 py-3 text-white placeholder-zinc-600 text-sm outline-none focus:border-violet-500/60 focus:bg-zinc-800 focus:shadow-[0_0_0_3px_rgba(139,92,246,0.1)] transition-all"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
-                                        Team
-                                    </label>
-                                    <select
-                                        value={teamID}
-                                        onChange={(e) => setTeamID(e.target.value)}
-                                        required
-                                        className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-violet-500/60 transition-all appearance-none cursor-pointer"
-                                    >
-                                        <option value="" disabled>Select a team</option>
-                                        {teams.map((t) => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <motion.button
-                                    type="submit"
-                                    disabled={loading || !name.trim()}
-                                    className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-                                    whileHover={!loading ? { scale: 1.01 } : {}}
-                                    whileTap={!loading ? { scale: 0.99 } : {}}
-                                >
-                                    {loading ? (
-                                        <>
-                                            <motion.div
-                                                className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                                                animate={{ rotate: 360 }}
-                                                transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                                            />
-                                            Creating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                                <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                            </svg>
-                                            Create board
-                                        </>
-                                    )}
-                                </motion.button>
-                            </form>
-                        </motion.div>
-                    </motion.div>
-                </>
-            )}
-        </AnimatePresence>
-    );
-};
-
-// ─── Dashboard page ───────────────────────────────────────────────────────────
-export default function DashboardPage() {
-    const router = useRouter();
-    const [user, setUser] = useState<User | null>(null);
-    const [teams, setTeams] = useState<Team[]>([]);
-    const [boards, setBoards] = useState<Board[]>([]);
-    const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [collapsed, setCollapsed] = useState(false);
-    const [showCreateBoard, setShowCreateBoard] = useState(false);
-    const [mounted, setMounted] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
-
-    useEffect(() => { setMounted(true); }, []);
-
-    // auth guard
-    useEffect(() => {
-        if (!mounted) return;
-        const token = getToken();
-        const userData = localStorage.getItem("user");
-        if (!token || !userData) { router.push("/auth/login"); return; }
-        setUser(JSON.parse(userData));
-    }, [mounted, router]);
-
-    // fetch teams
-    useEffect(() => {
-        if (!user) return;
-        const fetchTeams = async () => {
-            try {
-                const res = await fetch("http://localhost:8000/teams", { headers: authHeaders() });
-                if (res.status === 401) { router.push("/auth/login"); return; }
-                const data = await res.json();
-                const teamList: Team[] = Array.isArray(data) ? data : [];
-                setTeams(teamList);
-                if (teamList.length > 0) setSelectedTeam(teamList[0]);
-            } catch (e) {
-                console.error(e);
-            }
-        };
-        fetchTeams();
-    }, [user, router]);
-
-    // fetch team boards
-    useEffect(() => {
-        if (!user) return;
-        const fetchBoards = async () => {
-            setLoading(true);
-            try {
-                const res = await fetch("http://localhost:8000/boards?destination_id=" + (selectedTeam?.id || ""), { headers: authHeaders() });
-                if (res.status === 401) { router.push("/login"); return; }
-                const data = await res.json();
-                setBoards(Array.isArray(data) ? data : []);
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-
-        };
-        fetchBoards();
-    }, [user, router]);
-
-    //   fetch personal user boards
-    useEffect(() => {
-        if (!user) return;
-        const fetchBoards = async () => {
-            setLoading(true);
-            try {
-                const res = await fetch("http://localhost:8000/boards?destination_id=" + user.id, { headers: authHeaders() });
-                if (res.status === 401) { router.push("/login"); return; }
-                const data = await res.json();
-                setBoards(prev => [...prev, ...(Array.isArray(data) ? data : [])]);
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchBoards();
-
-    }, [user, router]);
-
-    console.log("mounted boards:", boards);
-
-    const teamBoards = boards.filter(
-        (b) => !selectedTeam || b.destination_id === selectedTeam.id
-    );
-
-    const filteredBoards = teamBoards.filter((b) =>
-        b.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const selectedTeamName = (id: string) =>
-        teams.find((t) => t.id === id)?.name ?? "Unknown";
-
-    if (!mounted) return null;
-
-    return (
         <div className="flex h-screen bg-zinc-950 overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            <Sidebar
-                user={user}
-                teams={teams}
-                boards={boards}
-                selectedTeam={selectedTeam}
-                onSelectTeam={setSelectedTeam}
-                collapsed={collapsed}
-                onCollapse={setCollapsed}
-            />
-
-            {/* Main content */}
             <main className="flex-1 flex flex-col overflow-hidden">
                 {/* Header */}
                 <header className="h-16 flex-shrink-0 border-b border-zinc-800/60 flex items-center justify-between px-6 bg-zinc-950/80 backdrop-blur-sm">
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <h1 className="text-white font-bold text-base leading-tight">
-                                {selectedTeam ? selectedTeam.name : "All Boards"}
-                            </h1>
-                            <p className="text-zinc-600 text-xs">
-                                {filteredBoards.length} board{filteredBoards.length !== 1 ? "s" : ""}
-                            </p>
-                        </div>
+                    <div>
+                        <h1 className="text-white font-bold text-base leading-tight">
+                            {greeting}, {user?.name?.split(" ")[0] ?? "there"} 👋
+                        </h1>
+                        <p className="text-zinc-600 text-xs mt-0.5">
+                            {new Date().toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric" })}
+                        </p>
                     </div>
-
                     <div className="flex items-center gap-3">
-                        {/* Search */}
-                        <div className="relative hidden sm:block">
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600">
-                                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-                                <path d="M9.5 9.5l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Search boards..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-8 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-700 transition-all w-48 focus:w-56"
-                            />
-                        </div>
-
-                        {/* New board */}
-                        <motion.button
-                            onClick={() => setShowCreateBoard(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                        >
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                                <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                            </svg>
-                            <span className="hidden sm:inline">New board</span>
-                        </motion.button>
-
-                        {/* Avatar */}
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold cursor-pointer">
+                        <Link href="/dashboard/all-boards">
+                            <motion.span
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors"
+                                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                    <rect x="1" y="1" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+                                    <rect x="7" y="1" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+                                    <rect x="1" y="7" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+                                    <rect x="7" y="7" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+                                </svg>
+                                View boards
+                            </motion.span>
+                        </Link>
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
                             {user ? getInitials(user.name) : "?"}
                         </div>
                     </div>
                 </header>
 
-                {/* Body */}
+                {/* Scrollable body */}
                 <div className="flex-1 overflow-y-auto p-6">
                     {loading ? (
-                        /* Skeleton loader */
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {Array.from({ length: 6 }).map((_, i) => (
-                                <motion.div
-                                    key={i}
-                                    className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800/60"
-                                    animate={{ opacity: [0.4, 0.7, 0.4] }}
-                                    transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 }}
-                                />
-                            ))}
+                        <div className="space-y-5">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                    <motion.div key={i} className="h-32 rounded-2xl bg-zinc-900 border border-zinc-800" animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 }} />
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                {Array.from({ length: 3 }).map((_, i) => (
+                                    <motion.div key={i} className="h-72 rounded-2xl bg-zinc-900 border border-zinc-800" animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.12 }} />
+                                ))}
+                            </div>
                         </div>
-                    ) : filteredBoards.length === 0 ? (
-                        searchQuery ? (
-                            <motion.div
-                                className="flex flex-col items-center justify-center py-20"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                            >
-                                <p className="text-zinc-500 text-sm">No boards match &quot;{searchQuery}&quot;</p>
-                                <button onClick={() => setSearchQuery("")} className="mt-2 text-violet-400 text-sm hover:text-violet-300">
-                                    Clear search
-                                </button>
-                            </motion.div>
-                        ) : (
-                            <EmptyBoards onCreateBoard={() => setShowCreateBoard(true)} />
-                        )
                     ) : (
-                        <>
-                            {/* Team section label */}
-                            {selectedTeam && (
-                                <motion.div
-                                    className="flex items-center gap-3 mb-6"
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white font-bold" style={{ fontSize: "9px" }}>
-                                            {getInitials(selectedTeam.name)}
-                                        </div>
-                                        <span className="text-zinc-400 text-sm font-medium">{selectedTeam.name}</span>
-                                    </div>
-                                    <div className="h-px flex-1 bg-zinc-800/60" />
-                                    <span className="text-zinc-700 text-xs">{filteredBoards.length} boards</span>
-                                </motion.div>
-                            )}
+                        <div className="space-y-5">
 
-                            {/* Board grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {filteredBoards.map((board, i) => (
+                            {/* ── Stat cards ──────────────────────────────────────────── */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                {[
+                                    {
+                                        label: "Total Tasks", value: tasks.length,
+                                        sub: `Across ${boards.length} board${boards.length !== 1 ? "s" : ""}`,
+                                        color: "text-violet-300", accent: "#a78bfa",
+                                        icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h12M3 5h12M3 13h7" stroke="#a78bfa" strokeWidth="1.4" strokeLinecap="round" /></svg>,
+                                        hover: "hover:border-violet-500/20", delay: 0,
+                                    },
+                                    {
+                                        label: "Completed", value: completed.length,
+                                        sub: `${rate}% completion rate`,
+                                        color: "text-emerald-300", accent: "#34d399",
+                                        icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9l5 5 7-7" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+                                        hover: "hover:border-emerald-500/20", delay: 0.08,
+                                    },
+                                    {
+                                        label: "In Progress", value: inProgress.length,
+                                        sub: `${todo.length} in todo`,
+                                        color: "text-indigo-300", accent: "#818cf8",
+                                        icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6" stroke="#818cf8" strokeWidth="1.4" /><path d="M9 6v3l2 2" stroke="#818cf8" strokeWidth="1.4" strokeLinecap="round" /></svg>,
+                                        hover: "hover:border-indigo-500/20", delay: 0.16,
+                                    },
+                                    {
+                                        label: "High Priority", value: highPri.length,
+                                        sub: overdue.length > 0 ? `${overdue.length} overdue` : "All on track",
+                                        color: overdue.length > 0 ? "text-red-300" : "text-orange-300",
+                                        accent: overdue.length > 0 ? "#f87171" : "#fb923c",
+                                        icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 4v6M9 13v.5" stroke={overdue.length > 0 ? "#f87171" : "#fb923c"} strokeWidth="1.6" strokeLinecap="round" /><circle cx="9" cy="9" r="6.5" stroke={overdue.length > 0 ? "#f87171" : "#fb923c"} strokeWidth="1.3" /></svg>,
+                                        hover: overdue.length > 0 ? "hover:border-red-500/20" : "hover:border-orange-500/20",
+                                        delay: 0.24,
+                                    },
+                                ].map((card, ci) => (
                                     <motion.div
-                                        key={board.id}
-                                        initial={{ opacity: 0, y: 20 }}
+                                        key={card.label}
+                                        className={`group relative rounded-2xl p-5 bg-zinc-900 border border-zinc-800/60 ${card.hover} overflow-hidden transition-all duration-300`}
+                                        initial={{ opacity: 0, y: 16 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: i * 0.07, duration: 0.4 }}
+                                        transition={{ delay: card.delay, duration: 0.45 }}
+                                        whileHover={{ y: -3 }}
                                     >
-                                        <BoardCard
-                                            board={board}
-                                            index={i}
-                                            teamName={selectedTeamName(board.destination_id)}
+                                        {/* top-left accent line */}
+                                        <motion.div
+                                            className="absolute top-0 left-0 h-0.5 rounded-full"
+                                            style={{ backgroundColor: card.accent }}
+                                            initial={{ width: 0 }}
+                                            animate={{ width: "40%" }}
+                                            transition={{ delay: card.delay + 0.3, duration: 0.6 }}
                                         />
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <p className="text-zinc-600 text-xs font-medium uppercase tracking-widest mb-3">{card.label}</p>
+                                                <p className={`text-4xl font-black tracking-tight ${card.color}`} style={{ fontFamily: "'Syne', sans-serif" }}>
+                                                    <AnimCounter value={card.value} />
+                                                </p>
+                                                <p className="text-zinc-600 text-xs mt-1.5">{card.sub}</p>
+                                            </div>
+                                            <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center mt-1">
+                                                {card.icon}
+                                            </div>
+                                        </div>
                                     </motion.div>
                                 ))}
+                            </div>
 
-                                {/* Create board card */}
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: filteredBoards.length * 0.07 }}
-                                >
-                                    <motion.button
-                                        onClick={() => setShowCreateBoard(true)}
-                                        className="w-full h-full min-h-[160px] rounded-2xl border border-dashed border-zinc-800 hover:border-violet-500/40 text-zinc-700 hover:text-violet-400 flex flex-col items-center justify-center gap-3 transition-all group"
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
+                            {/* ── Teams + Boards row ───────────────────────────────────── */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {[
+                                    {
+                                        label: "Teams", value: teams.length, sub: "Active workspaces", color: "text-cyan-300", accent: "#67e8f9",
+                                        icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="7" cy="6" r="3" stroke="#67e8f9" strokeWidth="1.4" /><circle cx="13" cy="6" r="2" stroke="#67e8f9" strokeWidth="1.4" opacity="0.5" /><path d="M1 15c0-2.761 2.686-4 6-4s6 1.239 6 4" stroke="#67e8f9" strokeWidth="1.4" strokeLinecap="round" /><path d="M13 11c1.657 0 3 .895 3 2.5" stroke="#67e8f9" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" /></svg>,
+                                        extra: (
+                                            <div className="flex -space-x-2 mt-3">
+                                                {teams.slice(0, 5).map((t, i) => (
+                                                    <div key={t.id} className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 border-2 border-zinc-900 flex items-center justify-center text-white font-bold" style={{ fontSize: "9px", zIndex: 5 - i }}>
+                                                        {getInitials(t.name)}
+                                                    </div>
+                                                ))}
+                                                {teams.length > 5 && <div className="w-7 h-7 rounded-full bg-zinc-800 border-2 border-zinc-900 flex items-center justify-center text-zinc-500 text-xs">+{teams.length - 5}</div>}
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        label: "Boards", value: boards.length, sub: "Active boards", color: "text-fuchsia-300", accent: "#e879f9",
+                                        icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="6" height="6" rx="1.5" stroke="#e879f9" strokeWidth="1.4" /><rect x="10" y="2" width="6" height="6" rx="1.5" stroke="#e879f9" strokeWidth="1.4" opacity="0.5" /><rect x="2" y="10" width="6" height="6" rx="1.5" stroke="#e879f9" strokeWidth="1.4" opacity="0.5" /><rect x="10" y="10" width="6" height="6" rx="1.5" stroke="#e879f9" strokeWidth="1.4" /></svg>,
+                                        extra: null,
+                                    },
+                                ].map((card, ci) => (
+                                    <motion.div
+                                        key={card.label}
+                                        className="relative rounded-2xl p-5 bg-zinc-900 border border-zinc-800/60 hover:border-zinc-700/60 overflow-hidden transition-all group"
+                                        initial={{ opacity: 0, y: 16 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.32 + ci * 0.08, duration: 0.45 }}
+                                        whileHover={{ y: -3 }}
                                     >
                                         <motion.div
-                                            className="w-10 h-10 rounded-xl border border-dashed border-zinc-700 group-hover:border-violet-500/40 flex items-center justify-center transition-all"
-                                            whileHover={{ rotate: 90 }}
-                                            transition={{ duration: 0.2 }}
-                                        >
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                                <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                            className="absolute top-0 left-0 h-0.5 rounded-full"
+                                            style={{ backgroundColor: card.accent }}
+                                            initial={{ width: 0 }}
+                                            animate={{ width: "40%" }}
+                                            transition={{ delay: 0.5 + ci * 0.08, duration: 0.6 }}
+                                        />
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <p className="text-zinc-600 text-xs font-medium uppercase tracking-widest mb-3">{card.label}</p>
+                                                <p className={`text-4xl font-black ${card.color}`} style={{ fontFamily: "'Syne', sans-serif" }}>
+                                                    <AnimCounter value={card.value} />
+                                                </p>
+                                                <p className="text-zinc-600 text-xs mt-1.5">{card.sub}</p>
+                                                {card.extra}
+                                            </div>
+                                            <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center">{card.icon}</div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+
+                            {/* ── Bottom 3-col row ─────────────────────────────────────── */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                                {/* Completion ring + priority */}
+                                <motion.div
+                                    className="rounded-2xl p-5 bg-zinc-900 border border-zinc-800/60"
+                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}
+                                >
+                                    <p className="text-white font-semibold text-sm mb-5">Task Breakdown</p>
+
+                                    {/* Ring */}
+                                    <div className="flex items-center justify-center mb-5">
+                                        <div className="relative">
+                                            <Ring pct={rate} color="#34d399" size={120} stroke={10} />
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                <span className="text-2xl font-black text-white" style={{ fontFamily: "'Syne', sans-serif" }}>{rate}%</span>
+                                                <span className="text-zinc-600 text-xs">complete</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Status pills */}
+                                    <div className="grid grid-cols-3 gap-2 mb-5">
+                                        {[
+                                            { label: "Todo", val: todo.length, color: "text-zinc-400", bg: "bg-zinc-800" },
+                                            { label: "Active", val: inProgress.length, color: "text-violet-400", bg: "bg-violet-500/10" },
+                                            { label: "Done", val: completed.length, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+                                        ].map((s) => (
+                                            <div key={s.label} className={`rounded-xl p-2 text-center ${s.bg}`}>
+                                                <p className={`text-lg font-black ${s.color}`} style={{ fontFamily: "'Syne', sans-serif" }}>{s.val}</p>
+                                                <p className="text-zinc-600 text-xs">{s.label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Priority bars */}
+                                    <div className="border-t border-zinc-800/60 pt-4 space-y-3">
+                                        {priorityRows.map((p) => (
+                                            <div key={p.label} className="flex items-center gap-3">
+                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${p.dot}`} />
+                                                <span className="text-zinc-500 text-xs w-12">{p.label}</span>
+                                                <Bar value={p.val} max={tasks.length} color={p.color} />
+                                                <span className="text-zinc-400 text-xs w-5 text-right font-medium">{p.val}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </motion.div>
+
+                                {/* Board activity */}
+                                <motion.div
+                                    className="rounded-2xl p-5 bg-zinc-900 border border-zinc-800/60"
+                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.56 }}
+                                >
+                                    <div className="flex items-center justify-between mb-5">
+                                        <p className="text-white font-semibold text-sm">Board Activity</p>
+                                        <Link href="/dashboard/all-boards" className="text-violet-400 hover:text-violet-300 text-xs transition-colors">View all →</Link>
+                                    </div>
+
+                                    {boardActivity.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-40 text-zinc-700">
+                                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                                <rect x="3" y="3" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                                                <rect x="16" y="3" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                                                <rect x="3" y="16" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                                                <rect x="16" y="16" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
                                             </svg>
-                                        </motion.div>
-                                        <span className="text-xs font-medium">New board</span>
-                                    </motion.button>
+                                            <p className="text-xs mt-2">No boards yet</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {boardActivity.map((board, i) => {
+                                                const max = boardActivity[0].count || 1;
+                                                return (
+                                                    <Link key={board.id} href={`/dashboard/boards/${board.id}`}>
+                                                        <motion.div
+                                                            className="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-zinc-800/50 transition-all cursor-pointer"
+                                                            whileHover={{ x: 2 }}
+                                                            initial={{ opacity: 0, x: -10 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            transition={{ delay: 0.56 + i * 0.06 }}
+                                                        >
+                                                            <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700/50 flex items-center justify-center flex-shrink-0 group-hover:border-zinc-600 transition-colors">
+                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PALETTE[i % PALETTE.length] }} />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-zinc-300 text-xs font-medium truncate group-hover:text-white transition-colors">{board.name}</p>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <Bar value={board.count} max={max} color={PALETTE[i % PALETTE.length]} />
+                                                                    <span className="text-zinc-600 text-xs flex-shrink-0">{board.count}</span>
+                                                                </div>
+                                                            </div>
+                                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-zinc-700 group-hover:text-zinc-500 transition-colors flex-shrink-0">
+                                                                <path d="M2 6h8M6 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                            </svg>
+                                                        </motion.div>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </motion.div>
+
+                                {/* Recent tasks */}
+                                <motion.div
+                                    className="rounded-2xl p-5 bg-zinc-900 border border-zinc-800/60"
+                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.64 }}
+                                >
+                                    <div className="flex items-center justify-between mb-5">
+                                        <p className="text-white font-semibold text-sm">Recent Tasks</p>
+                                        <span className="text-zinc-600 text-xs">{recentTasks.length} shown</span>
+                                    </div>
+
+                                    {recentTasks.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-40 text-zinc-700">
+                                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                                <path d="M5 14h18M5 8h18M5 20h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                                            </svg>
+                                            <p className="text-xs mt-2">No tasks yet</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1.5 overflow-y-auto max-h-[260px] pr-1 scrollbar-hide">
+                                            {recentTasks.map((task, i) => {
+                                                const colKey = task.column?.name?.toLowerCase() ?? "todo";
+                                                const cfg = COL_CFG[colKey] ?? COL_CFG["todo"];
+                                                const od = isOverdue(task.due_date);
+                                                return (
+                                                    <motion.div
+                                                        key={task.id}
+                                                        className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-zinc-800/40 transition-all cursor-pointer group"
+                                                        initial={{ opacity: 0, x: 10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        transition={{ delay: 0.64 + i * 0.04 }}
+                                                    >
+                                                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${cfg.dot}`} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-zinc-300 text-xs font-medium truncate group-hover:text-white">{task.title}</p>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <span className={`text-xs capitalize ${cfg.color}`}>{task.column?.name ?? "todo"}</span>
+                                                                <span className="text-zinc-700 text-xs">·</span>
+                                                                <span className={`text-xs ${od ? "text-red-400" : "text-zinc-600"}`}>{timeAgo(task.created_at)}</span>
+                                                            </div>
+                                                        </div>
+                                                        {task.priority === "high" && <div className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0 mt-1.5" />}
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </motion.div>
                             </div>
 
-                            {/* Other teams' boards */}
-                            {!selectedTeam && teams.length > 1 && (
-                                <div className="mt-10 space-y-8">
-                                    {teams.map((team) => {
-                                        const tb = boards.filter((b) => b.destination_id === team.id);
-                                        if (tb.length === 0) return null;
-                                        return (
-                                            <div key={team.id}>
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <span className="text-zinc-400 text-sm font-medium">{team.name}</span>
-                                                    <div className="h-px flex-1 bg-zinc-800/60" />
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                                    {tb.map((board, i) => (
-                                                        <BoardCard key={board.id} board={board} index={i} teamName={team.name} />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                            {/* ── Overdue alert ─────────────────────────────────────────── */}
+                            <AnimatePresence>
+                                {overdue.length > 0 && (
+                                    <motion.div
+                                        className="rounded-2xl p-4 bg-red-500/5 border border-red-500/15 flex items-center gap-4"
+                                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                    >
+                                        <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                                            <motion.svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                                                animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                                                <path d="M8 4v4M8 11v.5" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round" />
+                                                <circle cx="8" cy="8" r="6.5" stroke="#f87171" strokeWidth="1.2" />
+                                            </motion.svg>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-red-300 text-sm font-semibold">{overdue.length} overdue task{overdue.length !== 1 ? "s" : ""}</p>
+                                            <p className="text-red-400/50 text-xs mt-0.5">These tasks have passed their due date. Review them soon.</p>
+                                        </div>
+                                        <Link href="/dashboard/all-boards">
+                                            <motion.span
+                                                className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors whitespace-nowrap"
+                                                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                            >
+                                                Review now
+                                            </motion.span>
+                                        </Link>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* ── Empty workspace ───────────────────────────────────────── */}
+                            {tasks.length === 0 && teams.length === 0 && (
+                                <motion.div
+                                    className="rounded-2xl p-10 border border-dashed border-zinc-800 text-center"
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                                >
+                                    <motion.div
+                                        className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-4"
+                                        animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }}
+                                    >
+                                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                                            <path d="M11 4v14M4 11h14" stroke="#52525b" strokeWidth="1.5" strokeLinecap="round" />
+                                        </svg>
+                                    </motion.div>
+                                    <h3 className="text-white font-semibold text-base mb-2">Your workspace is empty</h3>
+                                    <p className="text-zinc-600 text-sm mb-6 max-w-xs mx-auto">Create a team and a board to start tracking tasks. Your analytics will appear here.</p>
+                                    <Link href="/dashboard/all-boards">
+                                        <motion.span
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+                                            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                                        >
+                                            Get started
+                                        </motion.span>
+                                    </Link>
+                                </motion.div>
                             )}
-                        </>
+                        </div>
                     )}
                 </div>
             </main>
-
-            {/* Create board modal */}
-            <CreateBoardModal
-                open={showCreateBoard}
-                onClose={() => setShowCreateBoard(false)}
-                teams={teams}
-                selectedTeam={selectedTeam}
-                onCreated={(board) => setBoards((prev) => [...prev, board])}
-            />
         </div>
     );
 }

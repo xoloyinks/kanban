@@ -17,3 +17,28 @@ export interface Board {
   name: string;
   destination_id: string;
 }
+
+export interface Column { 
+  id: string; 
+  name: string; 
+  board_id: string; 
+}
+export interface Task {
+  id: string; title: string; description: string;
+  assignee_id: string; board_id: string; column_id?: string;
+  priority: string; category: string; due_date: string;
+  created_at: string; updated_at: string;
+  column: Column;
+}
+
+export interface PaginatedTasks { 
+  data: Task[]; 
+  pagination: { 
+    page: number; 
+    limit: number; 
+    total: number; 
+    total_pages: number; 
+    has_next: boolean; 
+    has_prev: boolean; 
+  }; 
+}
