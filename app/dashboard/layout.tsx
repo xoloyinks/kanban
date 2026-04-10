@@ -4,7 +4,7 @@ import { authHeaders, getToken } from "@/helpers/helpers";
 import { Board, Team, User } from "@/structs/types";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
-import MyContext, { UserData } from "./context";
+import MyContext from "./context";
 
 
 export default function RootLayout({

@@ -25,7 +25,7 @@ export interface Column {
 }
 export interface Task {
   id: string; title: string; description: string;
-  assignee_id: string; board_id: string; column_id?: string;
+  destination_id: string; board_id: string; column_id?: string;
   priority: string; category: string; due_date: string;
   created_at: string; updated_at: string;
   column: Column;
@@ -42,3 +42,16 @@ export interface PaginatedTasks {
     has_prev: boolean; 
   }; 
 }
+
+export interface ColumnDef {
+  id: string; // server column id (may be empty if no tasks yet)
+  name: "todo" | "in progress" | "completed";
+  tasks: Task[];
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+export const FIXED_COLUMNS: Array<"todo" | "in progress" | "completed"> = [
+  "todo",
+  "in progress",
+  "completed",
+];

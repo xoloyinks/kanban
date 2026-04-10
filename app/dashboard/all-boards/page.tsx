@@ -310,7 +310,6 @@ export default function DashboardPage() {
     const [boards, setBoards] = useState<Board[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [loading, setLoading] = useState(true);
-    const [collapsed, setCollapsed] = useState(false);
     const [showCreateBoard, setShowCreateBoard] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");

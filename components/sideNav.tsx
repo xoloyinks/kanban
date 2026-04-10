@@ -37,7 +37,9 @@ export default function SideNav(
     const router = useRouter();
     const teamBoards = boards.filter((b) => b.destination_id === selectedTeam?.id);
     const path = usePathname();
-    
+
+
+    console.log(teams)
 
     const handleLogout = () => {
         localStorage.clear();
@@ -190,7 +192,7 @@ export default function SideNav(
                             <span className="text-xs font-semibold text-zinc-600 uppercase tracking-widest">
                                 Teams
                             </span>
-                            <Link href="/teams/new">
+                            <Link href="/dashboard/teams/new">
                                 <motion.button
                                     className="w-5 h-5 rounded-md flex items-center justify-center text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
                                     whileHover={{ scale: 1.1 }}

@@ -1,175 +1,87 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent,
+} from "@dnd-kit/core";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { authHeaders, COLUMN_CONFIG, formatDate, getInitials, getToken, PRIORITY_CONFIG } from "@/helpers/helpers";
-import { Board, Column, PaginatedTasks, Task, User } from "@/structs/types";
-import TaskCard from "@/components/taskCard";
+import {
+  authHeaders, getInitials, getToken,
+} from "@/helpers/helpers";
+import { Board, Column, ColumnDef, FIXED_COLUMNS, PaginatedTasks, Task, User } from "@/structs/types";
 import TaskModal from "@/components/taskModal";
 import CreateTaskModal from "@/components/createTaskModal";
+import OverlayCard from "@/components/overlayCard";
+import DroppableColumn from "@/components/droppableColumn";
 
-// ─── Column ───────────────────────────────────────────────────────────────────
-const KanbanColumn = ({
-  name, tasks, onAddTask, onOpenTask, onRenameColumn, columnId,
-}: {
-  name: string; tasks: Task[]; columnId: string;
-  onAddTask: (colName: string) => void;
-  onOpenTask: (t: Task) => void;
-  onRenameColumn: (id: string, name: string) => void;
-}) => {
-  const cfg = COLUMN_CONFIG[name.toLowerCase()] ?? COLUMN_CONFIG["todo"];
-  const [renaming, setRenaming] = useState(false);
-  const [newName, setNewName]   = useState(name);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleRename = async () => {
-    if (!newName.trim() || newName === name) { setRenaming(false); return; }
-    await onRenameColumn(columnId, newName.trim());
-    setRenaming(false);
-  };
-
-  useEffect(() => { if (renaming) inputRef.current?.focus(); }, [renaming]);
-
-  return (
-    <div className="flex flex-col w-72 flex-shrink-0">
-      {/* Column header */}
-      <div className="flex items-center justify-between mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${cfg.color.replace("text-", "bg-")}`} />
-          {renaming ? (
-            <input
-              ref={inputRef}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onBlur={handleRename}
-              onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setRenaming(false); }}
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-0.5 text-white text-sm outline-none focus:border-violet-500/60 w-32"
-            />
-          ) : (
-            <button
-              onClick={() => setRenaming(true)}
-              className={`text-sm font-semibold capitalize ${cfg.color} hover:opacity-80 transition-opacity`}
-            >
-              {name}
-            </button>
-          )}
-          <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.bg} border ${cfg.border} ${cfg.color} font-medium`}>
-            {tasks.length}
-          </span>
-        </div>
-
-        <motion.button
-          onClick={() => onAddTask(name)}
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-all"
-          whileHover={{ scale: 1.1, rotate: 90 }}
-          whileTap={{ scale: 0.9 }}
-          transition={{ duration: 0.15 }}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </motion.button>
-      </div>
-
-      {/* Tasks */}
-      <div className={`flex-1 rounded-2xl p-3 min-h-[200px] border ${cfg.border} bg-zinc-950/40 space-y-3`}>
-        <AnimatePresence initial={false}>
-          {tasks.map((task) => (
-            <motion.div
-              key={task.id}
-              initial={{ opacity: 0, y: 12, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.97 }}
-              transition={{ duration: 0.25 }}
-            >
-              <TaskCard task={task} onOpen={onOpenTask} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {tasks.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-8 gap-2"
-          >
-            <div className={`w-8 h-8 rounded-xl border border-dashed ${cfg.border} flex items-center justify-center ${cfg.color} opacity-40`}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            </div>
-            <p className="text-zinc-700 text-xs">No tasks</p>
-          </motion.div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ─── Main board page ──────────────────────────────────────────────────────────
 export default function BoardPage() {
-  const params  = useParams();
-  const router  = useRouter();
+  const params = useParams();
+  const router = useRouter();
   const boardId = params.id as string;
 
-  const [board, setBoard]               = useState<Board | null>(null);
-  const [tasks, setTasks]               = useState<Task[]>([]);
-  const [columns, setColumns]           = useState<Column[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [user, setUser]                 = useState<User | null>(null);
-  const [mounted, setMounted]           = useState(false);
+  const [board, setBoard] = useState<Board | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]); // server columns
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showTaskModal, setShowTaskModal]     = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createColumnName, setCreateColumnName] = useState("todo");
-  const [filterPriority, setFilterPriority]   = useState("");
-  const [searchQuery, setSearchQuery]         = useState("");
-  const [liveCount, setLiveCount]             = useState(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const [filterPriority, setFilterPriority] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [liveCount, setLiveCount] = useState(0);
+
+  // DnD state
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [overColumn, setOverColumn] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   useEffect(() => { setMounted(true); }, []);
 
-  // auth guard
   useEffect(() => {
     if (!mounted) return;
-    const token    = getToken();
-    const userData = localStorage.getItem("user");
-    if (!token || !userData) { router.push("/login"); return; }
-    setUser(JSON.parse(userData));
+    const token = getToken(), ud = localStorage.getItem("user");
+    if (!token || !ud) { router.push("/login"); return; }
+    setUser(JSON.parse(ud));
   }, [mounted, router]);
 
-  // fetch board
   useEffect(() => {
     if (!user) return;
-    const fetchBoard = async () => {
-      try {
-        const res = await fetch(`http://localhost:8000/boards/${boardId}`, { headers: authHeaders() });
-        if (res.status === 401) { router.push("/login"); return; }
-        if (res.ok) setBoard(await res.json());
-      } catch (e) { console.error(e); }
-    };
-    fetchBoard();
+    fetch(`http://localhost:8000/boards/${boardId}`, { headers: authHeaders() })
+      .then((r) => { if (r.status === 401) router.push("/login"); return r.ok ? r.json() : null; })
+      .then((d) => d && setBoard(d))
+      .catch(console.error);
   }, [user, boardId, router]);
 
-  // fetch tasks
   const fetchTasks = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
       let url = `http://localhost:8000/tasks?board_id=${boardId}&limit=100`;
       if (filterPriority) url += `&priority=${filterPriority}`;
-      if (searchQuery)    url += `&search=${encodeURIComponent(searchQuery)}`;
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
       const res = await fetch(url, { headers: authHeaders() });
       if (res.status === 401) { router.push("/login"); return; }
       const data: PaginatedTasks = await res.json();
-      const taskList = data.data ?? [];
-      setTasks(taskList);
-
-      // derive unique columns from tasks
+      const list = data.data ?? [];
+      setTasks(list);
       const colMap = new Map<string, Column>();
-      taskList.forEach((t) => { if (t.column?.id) colMap.set(t.column.id, t.column); });
+      list.forEach((t) => { if (t.column?.id) colMap.set(t.column.id, t.column); });
       setColumns(Array.from(colMap.values()));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -177,54 +89,207 @@ export default function BoardPage() {
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  // SSE connection
   useEffect(() => {
     if (!user || !boardId) return;
-    const token = getToken();
-    const es = new EventSource(`http://localhost:8000/stream?board_id=${boardId}&token=${token}`);
-    eventSourceRef.current = es;
 
-    es.addEventListener("connected", () => setLiveCount((c) => c + 1));
-    es.addEventListener("task:created", (e) => {
-      const task = JSON.parse(e.data) as Task;
-      setTasks((prev) => [task, ...prev]);
-      if (task.column?.id) setColumns((prev) => prev.find((c) => c.id === task.column.id) ? prev : [...prev, task.column]);
-    });
-    es.addEventListener("task:updated", (e) => {
-      const updated = JSON.parse(e.data);
-      setTasks((prev) => prev.map((t) => t.id === updated.id ? { ...t, ...updated } : t));
-    });
-    es.addEventListener("task:deleted", (e) => {
-      const { id } = JSON.parse(e.data);
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-    });
-    es.addEventListener("column:updated", (e) => {
-      const updated = JSON.parse(e.data);
-      setColumns((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
-      setTasks((prev) => prev.map((t) => t.column?.id === updated.id ? { ...t, column: { ...t.column, ...updated } } : t));
-    });
+    const controller = new AbortController();
+    let isMounted = true;
 
-    es.onerror = () => setLiveCount(0);
-    return () => { es.close(); setLiveCount(0); };
+    const connect = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/stream?board_id=${boardId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+            Accept: "text/event-stream",
+          },
+          signal: controller.signal,
+        });
+
+        if (!res.ok || !res.body) {
+          throw new Error("Failed to connect to SSE");
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+
+        let buffer = "";
+
+        while (isMounted) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Split by SSE message delimiter
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+
+          for (const part of parts) {
+            const lines = part.split("\n");
+
+            let event = "";
+            let data = "";
+
+            for (const line of lines) {
+              if (line.startsWith("event:")) {
+                event = line.replace("event:", "").trim();
+              }
+              if (line.startsWith("data:")) {
+                data += line.replace("data:", "").trim();
+              }
+            }
+
+            if (!event) continue;
+
+            //  Handle events 
+            if (event === "connected") {
+              setLiveCount((c) => c + 1);
+            }
+
+            if (event === "task:created") {
+              const task = JSON.parse(data) as Task;
+              setTasks((p) => [task, ...p]);
+
+              if (task.column?.id) {
+                setColumns((p) =>
+                  p.find((c) => c.id === task.column.id) ? p : [...p, task.column]
+                );
+              }
+            }
+
+            if (event === "task:updated") {
+              const updated = JSON.parse(data) as Task;
+
+              setTasks((p) =>
+                p.map((t) => (t.id === updated.id ? updated : t))
+              );
+
+              if (updated.column?.id) {
+                setColumns((p) =>
+                  p.find((c) => c.id === updated.column.id)
+                    ? p.map((c) => c.id === updated.column.id ? updated.column : c)
+                    : [...p, updated.column]
+                );
+              }
+            }
+
+            if (event === "task:deleted") {
+              const { id } = JSON.parse(data);
+              setTasks((p) => p.filter((t) => t.id !== id));
+            }
+
+            if (event === "column:updated") {
+              const u = JSON.parse(data);
+
+              setColumns((p) =>
+                p.map((c) => (c.id === u.id ? { ...c, ...u } : c))
+              );
+
+              setTasks((p) =>
+                p.map((t) =>
+                  t.column?.id === u.id
+                    ? { ...t, column: { ...t.column, ...u } }
+                    : t
+                )
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("SSE error:", err);
+        setLiveCount(0);
+      }
+    };
+
+    connect();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      setLiveCount(0);
+    };
   }, [user, boardId]);
 
-  // group tasks by column
-  const COLUMN_ORDER = ["todo", "in progress", "completed"];
+  // ── Build column defs (always 3 fixed columns) ────────────────────────────
+  const columnDefs: ColumnDef[] = FIXED_COLUMNS.map((colName) => {
+    const serverCol = columns.find((c) => c.name.toLowerCase() === colName);
+    const colTasks = tasks.filter((t) => t.column?.name?.toLowerCase() === colName);
+    return { id: serverCol?.id ?? "", name: colName, tasks: colTasks };
+  });
 
-  const columnGroups = (): { col: Column; tasks: Task[] }[] => {
-    const grouped: { col: Column; tasks: Task[] }[] = [];
-    const sorted = [...columns].sort((a, b) => {
-      const ai = COLUMN_ORDER.indexOf(a.name.toLowerCase());
-      const bi = COLUMN_ORDER.indexOf(b.name.toLowerCase());
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    });
-    sorted.forEach((col) => {
-      grouped.push({ col, tasks: tasks.filter((t) => t.column?.id === col.id) });
-    });
-    // tasks without column
-    const unassigned = tasks.filter((t) => !t.column?.id);
-    if (unassigned.length > 0 && sorted.length > 0) grouped[0].tasks.push(...unassigned);
-    return grouped;
+  // ── DnD handlers ──────────────────────────────────────────────────────────
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = tasks.find((t) => t.id === event.active.id);
+    if (task) setActiveTask(task);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    setOverColumn(over ? String(over.id) : null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+    setOverColumn(null);
+
+    if (!over) return;
+
+    const taskId = String(active.id);
+    const targetColName = String(over.id) as "todo" | "in progress" | "completed";
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // same column — no op
+    if (task.column?.name?.toLowerCase() === targetColName) return;
+
+    // optimistically move task in UI
+    const optimisticCol: Column = { id: "optimistic", name: targetColName, board_id: boardId };
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, column: optimisticCol } : t));
+
+    try {
+      // 1. find or create the target column
+      let targetCol = columns.find((c) => c.name.toLowerCase() === targetColName);
+
+      if (!targetCol) {
+        // column doesn't exist for this board yet — create it
+        const colRes = await fetch("http://localhost:8000/columns", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ board_id: boardId, name: targetColName }),
+        });
+
+        if (!colRes.ok) {
+          // rollback
+          setTasks((prev) => prev.map((t) => t.id === taskId ? task : t));
+          return;
+        }
+
+        targetCol = await colRes.json() as Column;
+
+        // add new column to state
+        setColumns((prev) => [...prev, targetCol!]);
+      }
+
+      // 2. update task with new column_id
+      const res = await fetch(`http://localhost:8000/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ board_id: task.board_id, column_id: targetCol.id }),
+      });
+
+      if (!res.ok) {
+        // rollback
+        setTasks((prev) => prev.map((t) => t.id === taskId ? task : t));
+      } else {
+        // confirm with real column data
+        setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, column: targetCol! } : t));
+      }
+    } catch {
+      // rollback
+      setTasks((prev) => prev.map((t) => t.id === taskId ? task : t));
+    }
   };
 
   const handleRenameColumn = async (id: string, name: string) => {
@@ -233,50 +298,41 @@ export default function BoardPage() {
         method: "PATCH", headers: authHeaders(), body: JSON.stringify({ name }),
       });
       if (res.ok) {
-        setColumns((prev) => prev.map((c) => c.id === id ? { ...c, name } : c));
-        setTasks((prev) => prev.map((t) => t.column?.id === id ? { ...t, column: { ...t.column, name } } : t));
+        setColumns((p) => p.map((c) => c.id === id ? { ...c, name } : c));
+        setTasks((p) => p.map((t) => t.column?.id === id ? { ...t, column: { ...t.column, name } } : t));
       }
     } catch (e) { console.error(e); }
   };
 
   const handleTaskCreated = (task: Task) => {
-    setTasks((prev) => [task, ...prev]);
-    if (task.column?.id) setColumns((prev) => prev.find((c) => c.id === task.column.id) ? prev : [...prev, task.column]);
+    setTasks((p) => [task, ...p]);
+    if (task.column?.id) setColumns((p) => p.find((c) => c.id === task.column.id) ? p : [...p, task.column]);
   };
 
   const handleTaskUpdated = (updated: Task) => {
-    setTasks((prev) => prev.map((t) => t.id === updated.id ? updated : t));
+    setTasks((p) => p.map((t) => t.id === updated.id ? updated : t));
     setSelectedTask(updated);
   };
 
-  const handleTaskDeleted = (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  const groups = columnGroups();
+  const handleTaskDeleted = (id: string) => setTasks((p) => p.filter((t) => t.id !== id));
 
   if (!mounted) return null;
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <header className="flex-shrink-0 h-14 border-b border-zinc-800/60 flex items-center justify-between px-5 bg-zinc-950/90 backdrop-blur-sm">
-        {/* Left */}
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/all-boards">
-            <motion.button
-              className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-300 transition-colors"
-              whileHover={{ x: -2 }}
-            >
+          <Link href="/all-boards">
+            <motion.button className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-300 transition-colors" whileHover={{ x: -2 }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span className="text-xs font-medium hidden sm:inline">Boards</span>
             </motion.button>
           </Link>
-
           <span className="text-zinc-800">/</span>
-
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -286,77 +342,44 @@ export default function BoardPage() {
                 <rect x="5.5" y="5.5" width="3.5" height="3.5" rx="0.8" fill="white" opacity="0.9" />
               </svg>
             </div>
-            <h1 className="text-white font-semibold text-sm">
-              {board?.name ?? "Loading..."}
-            </h1>
+            <h1 className="text-white font-semibold text-sm">{board?.name ?? "Loading..."}</h1>
           </div>
-
-          {/* Live indicator */}
           {liveCount > 0 && (
-            <motion.div
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <motion.div
-                className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-              />
+            <motion.div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
+              <motion.div className="w-1.5 h-1.5 rounded-full bg-emerald-400" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
               <span className="text-emerald-400 text-xs font-medium">Live</span>
             </motion.div>
           )}
         </div>
 
-        {/* Right */}
         <div className="flex items-center gap-2">
-          {/* Search */}
           <div className="relative hidden md:block">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600">
               <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
               <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-600 outline-none focus:border-zinc-700 transition-all w-40 focus:w-48"
-            />
+            <input type="text" placeholder="Search tasks..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-600 outline-none focus:border-zinc-700 transition-all w-40 focus:w-48" />
           </div>
-
-          {/* Priority filter */}
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-400 outline-none focus:border-zinc-700 transition-all appearance-none cursor-pointer hidden sm:block"
-          >
+          <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-400 outline-none focus:border-zinc-700 transition-all appearance-none cursor-pointer hidden sm:block">
             <option value="">All priorities</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
-
-          {/* Task count */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800">
             <span className="text-zinc-600 text-xs">{tasks.length}</span>
             <span className="text-zinc-700 text-xs">tasks</span>
           </div>
-
-          {/* New task */}
           <motion.button
             onClick={() => { setCreateColumnName("todo"); setShowCreateModal(true); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <span className="hidden sm:inline">New task</span>
           </motion.button>
-
-          {/* User avatar */}
           <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold cursor-pointer flex-shrink-0">
             {user ? getInitials(user.name) : "?"}
           </div>
@@ -366,78 +389,62 @@ export default function BoardPage() {
       {/* ── Board area ──────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
         {loading ? (
-          <div className="flex gap-4 p-6 h-full">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="w-72 flex-shrink-0 space-y-3">
-                <motion.div className="h-6 w-24 rounded-lg bg-zinc-800" animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }} />
+          <div className="flex gap-5 p-6 h-full">
+            {FIXED_COLUMNS.map((col, i) => (
+              <div key={col} className="w-72 flex-shrink-0 space-y-3">
+                <motion.div className="h-6 w-28 rounded-lg bg-zinc-800" animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }} />
                 {Array.from({ length: 3 }).map((_, j) => (
                   <motion.div key={j} className="h-28 rounded-xl bg-zinc-900 border border-zinc-800" animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 + j * 0.07 }} />
                 ))}
               </div>
             ))}
           </div>
-        ) : groups.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <motion.div className="text-center" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <motion.div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-4" animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 4v16M4 12h16" stroke="#52525b" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </motion.div>
-              <h3 className="text-white font-semibold mb-2">No tasks yet</h3>
-              <p className="text-zinc-600 text-sm mb-5">Create your first task to get started</p>
-              <motion.button
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
-                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                Create first task
-              </motion.button>
-            </motion.div>
-          </div>
         ) : (
-          <div className="flex gap-5 p-6 h-full min-w-max">
-            {groups.map(({ col, tasks: colTasks }, i) => (
-              <motion.div
-                key={col.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08, duration: 0.4 }}
-              >
-                <KanbanColumn
-                  name={col.name}
-                  columnId={col.id}
-                  tasks={colTasks}
-                  onAddTask={(colName) => { setCreateColumnName(colName); setShowCreateModal(true); }}
-                  onOpenTask={(task) => { setSelectedTask(task); setShowTaskModal(true); }}
-                  onRenameColumn={handleRenameColumn}
-                />
-              </motion.div>
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-5 p-6 h-full min-w-max">
+              {columnDefs.map((colDef, i) => (
+                <motion.div
+                  key={colDef.name}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.08, duration: 0.4 }}
+                >
+                  <DroppableColumn
+                    colDef={colDef}
+                    isOver={overColumn === colDef.name}
+                    onAddTask={(colName) => { setCreateColumnName(colName); setShowCreateModal(true); }}
+                    onOpenTask={(task) => { setSelectedTask(task); setShowTaskModal(true); }}
+                    onRenameColumn={handleRenameColumn}
+                  />
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Drag overlay — rendered at root, follows cursor */}
+            <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+              {activeTask ? <OverlayCard task={activeTask} /> : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </div>
 
       {/* ── Modals ──────────────────────────────────────────────────────── */}
       <TaskModal
-        task={selectedTask}
-        open={showTaskModal}
+        task={selectedTask} open={showTaskModal}
         onClose={() => setShowTaskModal(false)}
-        onUpdated={handleTaskUpdated}
-        onDeleted={handleTaskDeleted}
+        onUpdated={handleTaskUpdated} onDeleted={handleTaskDeleted}
         columns={columns}
       />
-
       <CreateTaskModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        boardId={boardId}
-        defaultColumnName={createColumnName}
-        columns={columns}
-        onCreated={handleTaskCreated}
+        open={showCreateModal} onClose={() => setShowCreateModal(false)}
+        boardId={boardId} defaultColumnName={createColumnName}
+        columns={columns} onCreated={handleTaskCreated}
       />
     </div>
   );
