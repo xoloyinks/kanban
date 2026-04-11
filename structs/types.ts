@@ -2,6 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  teams: string[]; // Array of team IDs the user belongs to
 }
 
 export interface Team {

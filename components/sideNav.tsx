@@ -20,7 +20,7 @@ export default function SideNav(
         user,
         teams,
         boards,
-        selectedTeam,
+        // selectedTeam,
         onSelectTeam,
         collapsed,
         onCollapse,
@@ -38,8 +38,15 @@ export default function SideNav(
     const teamBoards = boards.filter((b) => b.destination_id === selectedTeam?.id);
     const path = usePathname();
 
+    const [selectedTeam, setSelectedTeam] = React.useState<Team | null>(null);
 
-    console.log(teams)
+
+    console.log("teams in side nav:", selectedTeam);
+
+    const handleTeamSelect = (team: Team) => {
+        setSelectedTeam(team);
+        router.push(team ? `/dashboard/teams/${team.id}` : "/dashboard");
+    }
 
     const handleLogout = () => {
         localStorage.clear();
@@ -212,7 +219,8 @@ export default function SideNav(
                                 teams.map((team, i) => (
                                     <motion.button
                                         key={team.id}
-                                        onClick={() => onSelectTeam(team)}
+                                        // onClick={() => onSelectTeam(team)}
+                                        onClick={() => handleTeamSelect(team)}
                                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${selectedTeam?.id === team.id
                                             ? "bg-zinc-800/80 text-white"
                                             : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"

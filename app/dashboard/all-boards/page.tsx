@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Board, Team, User } from "@/structs/types";
 import { authHeaders, getInitials, getToken } from "@/helpers/helpers";
-import SideNav from "@/components/sideNav";
+import { userAgent } from "next/server";
 
 const BOARD_COLORS = [
     "from-violet-500/20 to-violet-600/5 border-violet-500/20",
@@ -137,11 +137,13 @@ const EmptyBoards = ({ onCreateBoard }: { onCreateBoard: () => void }) => (
 const CreateBoardModal = ({
     open,
     onClose,
+    user,
     teams,
     selectedTeam,
     onCreated,
 }: {
     open: boolean;
+    user: User | null;
     onClose: () => void;
     teams: Team[];
     selectedTeam: Team | null;
@@ -151,6 +153,7 @@ const CreateBoardModal = ({
     const [teamID, setTeamID] = useState(selectedTeam?.id ?? "");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [isPersonalBoard, setIsPersonalBoard] = useState(true);
 
     useEffect(() => {
         if (open) {
@@ -167,10 +170,10 @@ const CreateBoardModal = ({
         setError("");
 
         try {
-            const res = await fetch("http://localhost:8000/boards", {
+            const res = await fetch(`http://localhost:8000/board/${isPersonalBoard ? user?.id : teamID}`, {
                 method: "POST",
                 headers: authHeaders(),
-                body: JSON.stringify({ name: name.trim(), destination_id: teamID }),
+                body: JSON.stringify({ name: name.trim()}),
             });
             const data = await res.json();
             if (!res.ok) { setError(data.error || "Failed to create board"); return; }
@@ -235,7 +238,8 @@ const CreateBoardModal = ({
                                 )}
                             </AnimatePresence>
 
-                            <form onSubmit={handleSubmit} className="space-y-4">
+                            <form onSubmit={handleSubmit} className="space-y-5">
+                                {/* Board Name */}
                                 <div>
                                     <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
                                         Board name
@@ -251,23 +255,49 @@ const CreateBoardModal = ({
                                     />
                                 </div>
 
+                                {/* Personal Board Toggle */}
                                 <div>
                                     <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
-                                        Team
+                                        Board type
                                     </label>
-                                    <select
-                                        value={teamID}
-                                        onChange={(e) => setTeamID(e.target.value)}
-                                        required
-                                        className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-violet-500/60 transition-all appearance-none cursor-pointer"
-                                    >
-                                        <option value="" disabled>Select a team</option>
-                                        {teams.map((t) => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
+
+                                    <div className="flex items-center justify-between bg-zinc-800/40 border border-zinc-700/50 rounded-xl px-4 py-3">
+                                        <div>
+                                            <p className="text-sm text-white font-medium">Personal board</p>
+                                            <p className="text-xs text-zinc-500">Not linked to any team</p>
+                                        </div>
+
+                                        <input
+                                            type="checkbox"
+                                            id="personal-board"
+                                            checked={isPersonalBoard}
+                                            onChange={(e) => setIsPersonalBoard(e.target.checked)}
+                                            className="w-5 h-5 accent-violet-600 cursor-pointer"
+                                        />
+                                    </div>
                                 </div>
 
+                                {/* Team Select */}
+                                {!isPersonalBoard && (
+                                    <div>
+                                        <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
+                                            Team
+                                        </label>
+                                        <select
+                                            value={teamID}
+                                            onChange={(e) => setTeamID(e.target.value)}
+                                            required
+                                            className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-violet-500/60 transition-all appearance-none cursor-pointer"
+                                        >
+                                            <option value="" disabled>Select a team</option>
+                                            {teams.map((t) => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Submit */}
                                 <motion.button
                                     type="submit"
                                     disabled={loading || !name.trim()}
@@ -313,6 +343,8 @@ export default function DashboardPage() {
     const [showCreateBoard, setShowCreateBoard] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+
+    
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -386,7 +418,7 @@ export default function DashboardPage() {
     // console.log("mounted boards:", boards);
 
     const teamBoards = boards.filter(
-        (b) => !selectedTeam || b.destination_id === selectedTeam.id
+        (b) => !user || b.destination_id === user?.id
     );
 
     const filteredBoards = teamBoards.filter((b) =>
@@ -397,6 +429,8 @@ export default function DashboardPage() {
         teams.find((t) => t.id === id)?.name ?? "Unknown";
 
     if (!mounted) return null;
+
+    console.log(teamBoards)
 
     return (
         <div className="flex h-screen bg-zinc-950 overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -573,6 +607,7 @@ export default function DashboardPage() {
             {/* Create board modal */}
             <CreateBoardModal
                 open={showCreateBoard}
+                user={user}
                 onClose={() => setShowCreateBoard(false)}
                 teams={teams}
                 selectedTeam={selectedTeam}

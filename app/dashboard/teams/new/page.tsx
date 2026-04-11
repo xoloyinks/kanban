@@ -193,7 +193,9 @@ export default function NewTeamPage() {
       const teamData = await teamRes.json();
       if (!teamRes.ok) { setError(teamData.error || "Failed to create team"); return; }
 
-      const teamId = teamData.id;
+      const teamId = teamData.teamId;
+
+       console.log(teamData)
       setCreatedTeamId(teamId);
 
       // 2. invite members (fire all in parallel, ignore individual failures)
@@ -209,6 +211,8 @@ export default function NewTeamPage() {
         );
       }
 
+      
+
       setSuccess(true);
       setTimeout(() => router.push("/dashboard/all-boards"), 1800);
     } catch {
@@ -219,6 +223,7 @@ export default function NewTeamPage() {
   };
 
   if (!mounted) return null;
+ 
 
   return (
     <div className="min-h-screen bg-zinc-950 flex overflow-hidden relative" style={{ fontFamily: "'DM Sans', sans-serif" }}>

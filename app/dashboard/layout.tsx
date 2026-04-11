@@ -38,18 +38,33 @@ export default function RootLayout({
         (async () => {
             setLoading(true);
             try {
-                const res = await fetch("http://localhost:8000/teams", {
-                    headers: authHeaders(),
-                });
+                const teams = await Promise.all(
+                    user.teams.map(async (tid): Promise<Team | null> => {
+                        console.log(`http://localhost:8000/teams/${tid}`)
+                        try {
+                            const res = await fetch(`http://localhost:8000/teams/${tid}`, {
+                                headers: authHeaders(),
+                            });
 
-                if (!res.ok) {
-                    throw new Error(`Request failed: ${res.status}`);
-                }
+                            if (!res.ok) {
+                                throw new Error(`Failed to fetch team ${tid}: ${res.status}`);
+                            }
 
-                const tl: Team[] = await res.json().then((d) => Array.isArray(d) ? d : []);
-                setTeams(tl); 
+                            return await res.json();
+                        } catch (err) {
+                            console.error(`Error fetching team ${tid}:`, err);
+                            return null;
+                        }
+                    })
+                );
+
+                const validTeams: Team[] = teams.filter((t): t is Team => t !== null);
+
+                // console.log("Fetched teams:", validTeams);
+                setTeams(validTeams);
+
             } catch (err) {
-                console.error("Failed to fetch teams:", err);
+                console.error("Unexpected error:", err);
             } finally {
                 setLoading(false);
             }
