@@ -163,6 +163,8 @@ const CreateBoardModal = ({
         }
     }, [open, selectedTeam, teams]);
 
+    console.log("first", teams)
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim() || !teamID) return;
@@ -173,7 +175,7 @@ const CreateBoardModal = ({
             const res = await fetch(`http://localhost:8000/board/${isPersonalBoard ? user?.id : teamID}`, {
                 method: "POST",
                 headers: authHeaders(),
-                body: JSON.stringify({ name: name.trim()}),
+                body: JSON.stringify({ name: name.trim() }),
             });
             const data = await res.json();
             if (!res.ok) { setError(data.error || "Failed to create board"); return; }
@@ -344,7 +346,7 @@ export default function DashboardPage() {
     const [mounted, setMounted] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
-    
+
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -380,11 +382,17 @@ export default function DashboardPage() {
         if (!user) return;
         const fetchBoards = async () => {
             setLoading(true);
+
+            // map through teams id using promises all to fetch boards for each team in parallel and update state using setBoards(prev => [...prev, ...data]) for each team
+            const boardPromises = teams.map((team) =>
+                fetch(`http://localhost:8000/boards?destination_id=${team.id}`, { headers: authHeaders() })
+            );
+
             try {
-                const res = await fetch("http://localhost:8000/boards?destination_id=" + (selectedTeam?.id || ""), { headers: authHeaders() });
-                if (res.status === 401) { router.push("/login"); return; }
-                const data = await res.json();
-                setBoards(Array.isArray(data) ? data : []);
+                const responses = await Promise.all(boardPromises);
+                const boardData = await Promise.all(responses.map((res) => res.json()));
+
+                setBoards(prev => [...prev, ...boardData.flat().filter((v): v is NonNullable<typeof v> => !!v)]);
             } catch (e) {
                 console.error(e);
             } finally {
@@ -393,7 +401,7 @@ export default function DashboardPage() {
 
         };
         fetchBoards();
-    }, [user, router]);
+    }, [user, teams]);
 
     //   fetch personal user boards
     useEffect(() => {
@@ -415,13 +423,11 @@ export default function DashboardPage() {
 
     }, [user, router]);
 
-    // console.log("mounted boards:", boards);
-
     const teamBoards = boards.filter(
-        (b) => !user || b.destination_id === user?.id
+        (b) => b.destination_id === user?.id
     );
 
-    const filteredBoards = teamBoards.filter((b) =>
+    const filteredBoards = boards.filter((b) =>
         b.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -430,7 +436,7 @@ export default function DashboardPage() {
 
     if (!mounted) return null;
 
-    console.log(teamBoards)
+
 
     return (
         <div className="flex h-screen bg-zinc-950 overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -555,7 +561,7 @@ export default function DashboardPage() {
                                 <motion.div
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: filteredBoards.length * 0.07 }}
+                                    transition={{ delay: boards.length * 0.07 }}
                                 >
                                     <motion.button
                                         onClick={() => setShowCreateBoard(true)}

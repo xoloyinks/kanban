@@ -219,12 +219,8 @@ export default function SideNav(
                                 teams.map((team, i) => (
                                     <motion.button
                                         key={team.id}
-                                        // onClick={() => onSelectTeam(team)}
                                         onClick={() => handleTeamSelect(team)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${selectedTeam?.id === team.id
-                                            ? "bg-zinc-800/80 text-white"
-                                            : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                                            }`}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40`}
                                         whileHover={{ x: 2 }}
                                     >
                                         <div
@@ -235,11 +231,11 @@ export default function SideNav(
                                             {getInitials(team.name)}
                                         </div>
                                         <span className="text-sm font-medium truncate">{team.name}</span>
-                                        {selectedTeam?.id === team.id && (
+                                        {/* {selectedTeam?.id === team.id && (
                                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="ml-auto flex-shrink-0 text-violet-400">
                                                 <path d="M2 7l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                             </svg>
-                                        )}
+                                        )} */}
                                     </motion.button>
                                 ))
                             )}

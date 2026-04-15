@@ -58,9 +58,9 @@ const AddMemberModal = ({
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch(`http://localhost:8000/teams/${teamId}/members`, {
+      const res = await fetch(`http://localhost:8000/addMember/${teamId}`, {
         method: "POST", headers: authHeaders(),
-        body: JSON.stringify({ email: email.trim(), role }),
+        body: JSON.stringify({ email: email.trim(), role, team_id: teamId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to add member"); return; }
