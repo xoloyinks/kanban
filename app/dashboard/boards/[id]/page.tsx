@@ -64,8 +64,9 @@ export default function BoardPage() {
     if (!user) return;
     fetch(`http://localhost:8000/boards/${boardId}`, { headers: authHeaders() })
       .then((r) => { if (r.status === 401) router.push("/login"); return r.ok ? r.json() : null; })
-      .then((d) => d && setBoard(d))
+      .then((d) => d && console.log(d))
       .catch(console.error);
+
   }, [user, boardId, router]);
 
   const fetchTasks = useCallback(async () => {
@@ -305,6 +306,7 @@ export default function BoardPage() {
   };
 
   const handleTaskCreated = (task: Task) => {
+    // console.log("Task ")
     setTasks((p) => [task, ...p]);
     if (task.column?.id) setColumns((p) => p.find((c) => c.id === task.column.id) ? p : [...p, task.column]);
   };
@@ -318,11 +320,12 @@ export default function BoardPage() {
 
   if (!mounted) return null;
 
+
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 h-14 border-b border-zinc-800/60 flex items-center justify-between px-5 bg-zinc-950/90 backdrop-blur-sm">
+      <header className="shrink-0 h-14 border-b border-zinc-800/60 flex items-center justify-between px-5 bg-zinc-950/90 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <Link href="/all-boards">
             <motion.button className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-300 transition-colors" whileHover={{ x: -2 }}>
@@ -408,6 +411,7 @@ export default function BoardPage() {
             onDragEnd={handleDragEnd}
           >
             <div className="flex gap-5 p-6 h-full min-w-max">
+              
               {columnDefs.map((colDef, i) => (
                 <motion.div
                   key={colDef.name}

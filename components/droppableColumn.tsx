@@ -29,7 +29,7 @@ export default function DroppableColumn({
         setRenaming(false);
       };
   return (
-    <div className="flex flex-col w-72 flex-shrink-0">
+    <div className="flex flex-col w-72 shrink-0">
       {/* Column header */}
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">

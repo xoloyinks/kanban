@@ -56,3 +56,14 @@ export const FIXED_COLUMNS: Array<"todo" | "in progress" | "completed"> = [
   "in progress",
   "completed",
 ];
+
+export const PRIORITY: Record<string, { label: string; color: string; bg: string; dot: string; ring: string }> = {
+  high:   { label: "High",   color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20",       dot: "bg-red-400",     ring: "ring-red-500/30"    },
+  medium: { label: "Medium", color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/20", dot: "bg-yellow-400",  ring: "ring-yellow-500/30" },
+  low:    { label: "Low",    color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20",dot: "bg-emerald-400", ring: "ring-emerald-500/30"},
+};
+export const COLUMN: Record<string, { color: string; bg: string; dot: string }> = {
+  "todo":        { color: "text-zinc-400",    bg: "bg-zinc-800",         dot: "bg-zinc-500"    },
+  "in progress": { color: "text-violet-400",  bg: "bg-violet-500/10",    dot: "bg-violet-400"  },
+  "completed":   { color: "text-emerald-400", bg: "bg-emerald-500/10",   dot: "bg-emerald-400" },
+};

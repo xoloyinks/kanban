@@ -4,222 +4,23 @@ import { useState, useEffect, useRef, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserData } from "./context";
+import { Board, Task, Team, User } from "@/structs/types";
+import { authHeaders, getInitials, getToken, isOverdue, timeAgo } from "@/helpers/helpers";
+import AnimCounter from "@/components/animatedCounter";
+import Ring from "@/components/ringChart";
+import Bar from "@/components/bar";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface User { id: string; name: string; email: string; }
-interface Team { id: string; name: string; description: string; created_by: string; created_at: string; }
-interface Board { id: string; name: string; destination_id: string; }
-interface Task {
-    id: string; title: string; priority: string;
-    board_id: string; column: { id: string; name: string };
-    created_at: string; due_date: string;
-}
+
 interface PaginatedTasks { data: Task[]; pagination: { total: number } }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
-const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
-const getInitials = (name: string) => name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
-const isOverdue = (due: string) => due && !due.startsWith("0001") && new Date(due) < new Date();
-const timeAgo = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-};
-
-// ─── Animated counter ─────────────────────────────────────────────────────────
-const AnimCounter = ({ value, duration = 1100 }: { value: number; duration?: number }) => {
-    const [n, setN] = useState(0);
-    const prev = useRef(0);
-    useEffect(() => {
-        const start = prev.current, end = value;
-        const step = (end - start) / (duration / 16);
-        let cur = start;
-        const t = setInterval(() => {
-            cur += step;
-            if ((step >= 0 && cur >= end) || (step < 0 && cur <= end)) { setN(end); clearInterval(t); }
-            else setN(Math.round(cur));
-        }, 16);
-        prev.current = end;
-        return () => clearInterval(t);
-    }, [value, duration]);
-    return <>{n}</>;
-};
-
-// ─── Ring chart ───────────────────────────────────────────────────────────────
-const Ring = ({ pct, color, size = 96, stroke = 8 }: { pct: number; color: string; size?: number; stroke?: number }) => {
-    const r = (size - stroke * 2) / 2;
-    const circ = 2 * Math.PI * r;
-    return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#27272a" strokeWidth={stroke} />
-            <motion.circle
-                cx={size / 2} cy={size / 2} r={r} fill="none"
-                stroke={color} strokeWidth={stroke} strokeLinecap="round"
-                strokeDasharray={circ}
-                initial={{ strokeDashoffset: circ }}
-                animate={{ strokeDashoffset: circ - (pct / 100) * circ }}
-                transition={{ duration: 1.3, ease: "easeOut", delay: 0.4 }}
-            />
-        </svg>
-    );
-};
-
-// ─── Mini bar ─────────────────────────────────────────────────────────────────
-const Bar = ({ value, max, color }: { value: number; max: number; color: string }) => (
-    <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-        <motion.div
-            className="h-full rounded-full"
-            style={{ backgroundColor: color }}
-            initial={{ width: 0 }}
-            animate={{ width: max > 0 ? `${(value / max) * 100}%` : 0 }}
-            transition={{ duration: 0.9, ease: "easeOut", delay: 0.5 }}
-        />
-    </div>
-);
-
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-const Sidebar = ({ user, teams, collapsed, onCollapse }: {
-    user: User | null; teams: Team[];
-    collapsed: boolean; onCollapse: (v: boolean) => void;
-}) => {
-    const router = useRouter();
-    const nav = [
-        { icon: "home", label: "Dashboard", href: "/dashboard", active: true },
-        { icon: "grid", label: "All Boards", href: "/all-boards", active: false },
-        { icon: "user", label: "My Tasks", href: "/tasks", active: false },
-        { icon: "team", label: "Teams", href: "/teams", active: false },
-    ];
-    const icons: Record<string, React.ReactNode> = {
-        home: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5.5L8 2l6 3.5V14H2V5.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M6 14v-4h4v4" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>,
-        grid: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /></svg>,
-        user: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.3" /><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>,
-        team: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3" /><circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" opacity="0.6" /><path d="M1 14c0-2.761 2.239-4 5-4s5 1.239 5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><path d="M12 10c1.657 0 3 .895 3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" opacity="0.6" /></svg>,
-    };
-
-    return (
-        <motion.aside
-            animate={{ width: collapsed ? 68 : 240 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="relative flex-shrink-0 h-screen bg-zinc-950 border-r border-zinc-800/60 flex flex-col overflow-hidden z-20"
-        >
-            {/* Logo row */}
-            <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-800/60 flex-shrink-0">
-                {collapsed ? (
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center mx-auto">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <rect x="1" y="1" width="5" height="5" rx="1" fill="white" opacity="0.9" />
-                            <rect x="8" y="1" width="5" height="5" rx="1" fill="white" opacity="0.5" />
-                            <rect x="1" y="8" width="5" height="5" rx="1" fill="white" opacity="0.5" />
-                            <rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity="0.9" />
-                        </svg>
-                    </div>
-                ) : (
-                    <AnimatePresence>
-                        <motion.div className="flex items-center gap-2.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                    <rect x="1" y="1" width="5" height="5" rx="1" fill="white" opacity="0.9" />
-                                    <rect x="8" y="1" width="5" height="5" rx="1" fill="white" opacity="0.5" />
-                                    <rect x="1" y="8" width="5" height="5" rx="1" fill="white" opacity="0.5" />
-                                    <rect x="8" y="8" width="5" height="5" rx="1" fill="white" opacity="0.9" />
-                                </svg>
-                            </div>
-                            <span className="text-white font-bold text-sm tracking-tight whitespace-nowrap">TaskFlow</span>
-                        </motion.div>
-                    </AnimatePresence>
-                )}
-                {!collapsed && (
-                    <button onClick={() => onCollapse(true)} className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 transition-all">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L5 7l4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </button>
-                )}
-            </div>
-
-            {collapsed && (
-                <button onClick={() => onCollapse(false)} className="absolute top-4 -right-3 w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white z-30 shadow-md">
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-            )}
-
-            {/* Nav */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-1 scrollbar-hide">
-                {nav.map((item) => (
-                    <Link key={item.label} href={item.href}>
-                        <motion.div
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${item.active ? "bg-violet-500/10 text-violet-300" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"}`}
-                            whileHover={{ x: collapsed ? 0 : 2 }}
-                        >
-                            <span className="flex-shrink-0">{icons[item.icon]}</span>
-                            <AnimatePresence>
-                                {!collapsed && (
-                                    <motion.span className="text-sm font-medium whitespace-nowrap" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }}>
-                                        {item.label}
-                                    </motion.span>
-                                )}
-                            </AnimatePresence>
-                        </motion.div>
-                    </Link>
-                ))}
-
-                {/* Teams list */}
-                {!collapsed && teams.length > 0 && (
-                    <motion.div className="pt-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <p className="text-xs font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Teams</p>
-                        {teams.slice(0, 5).map((team) => (
-                            <Link key={team.id} href="/all-boards">
-                                <motion.div className="flex items-center gap-3 px-3 py-2 rounded-xl text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/40 transition-all cursor-pointer" whileHover={{ x: 2 }}>
-                                    <div className="w-5 h-5 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-white font-bold flex-shrink-0" style={{ fontSize: "8px" }}>
-                                        {getInitials(team.name)}
-                                    </div>
-                                    <span className="text-xs truncate">{team.name}</span>
-                                </motion.div>
-                            </Link>
-                        ))}
-                    </motion.div>
-                )}
-            </div>
-
-            {/* User */}
-            <div className="flex-shrink-0 border-t border-zinc-800/60 p-3">
-                <div className={`flex items-center gap-3 px-2 py-2 rounded-xl ${!collapsed ? "hover:bg-zinc-800/40" : ""} transition-all cursor-pointer group`}>
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {user ? getInitials(user.name) : "?"}
-                    </div>
-                    <AnimatePresence>
-                        {!collapsed && (
-                            <motion.div className="flex-1 min-w-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
-                                <p className="text-zinc-600 text-xs truncate">{user?.email}</p>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                    {!collapsed && (
-                        <motion.button onClick={() => { localStorage.clear(); router.push("/login"); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-700 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100" title="Sign out">
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2v10h3M9 4l3 3-3 3M12 7H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </motion.button>
-                    )}
-                </div>
-            </div>
-        </motion.aside>
-    );
-};
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
     const router = useRouter();
-    const [userDetails, setUserDetails] = useContext(UserData);
     const [teams, setTeams] = useState<Team[]>([]);
     const [user, setUser] = useState<User | null>(null);
     const [boards, setBoards] = useState<Board[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
-    const [collapsed, setCollapsed] = useState(false);
     const [greeting, setGreeting] = useState("Good morning");
 
     useEffect(() => {
@@ -235,31 +36,76 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-        if (!user) return;
-        (async () => {
-            setLoading(true);
-            try {
-                const [tr, br] = await Promise.all([
-                    fetch("http://localhost:8000/teams", { headers: authHeaders() }),
-                    fetch("http://localhost:8000/boards?destination_id=" + user.id, { headers: authHeaders() }),
-                ]);
-                if (tr.status === 401) { router.push("/login"); return; }
-                const tl: Team[] = await tr.json().then((d) => Array.isArray(d) ? d : []);
-                const bl: Board[] = await br.json().then((d) => Array.isArray(d) ? d : []);
-                setTeams(tl); setBoards(bl);
+  if (!user) return;
 
-                if (bl.length > 0) {
-                    const results = await Promise.all(
-                        bl.map((b) => fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, { headers: authHeaders() })
-                            .then((r) => r.json() as Promise<PaginatedTasks>)
-                            .catch(() => ({ data: [] as Task[], pagination: { total: 0 } }))
-                        )
-                    );
-                    setTasks(results.flatMap((r) => r.data ?? []));
-                }
-            } finally { setLoading(false); }
-        })();
-    }, [user, router]);
+  (async () => {
+    setLoading(true);
+
+    try {
+      // 1. Fetch teams + personal boards
+      const [teamsRes, personalBoardsRes] = await Promise.all([
+        fetch("http://localhost:8000/teams", { headers: authHeaders() }),
+        fetch(`http://localhost:8000/boards?destination_id=${user.id}`, { headers: authHeaders() }),
+      ]);
+
+      if (teamsRes.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      const teamsData: Team[] = await teamsRes.json().then(d => Array.isArray(d) ? d : []);
+      const personalBoards: Board[] = await personalBoardsRes.json().then(d => Array.isArray(d) ? d : []);
+
+      // 2. Fetch boards for each team
+      const teamBoardResponses = await Promise.all(
+        (user.teams || []).map((tid) =>
+          fetch(`http://localhost:8000/boards?destination_id=${tid}`, {
+            headers: authHeaders(),
+          }).then(res => res.json())
+        )
+      );
+
+      // 3. Flatten team boards
+      const teamBoards: Board[] = teamBoardResponses.flat().filter(Boolean);
+
+      // 4. Merge + dedupe (IMPORTANT)
+      const allBoardsMap = new Map<string, Board>();
+
+      [...personalBoards, ...teamBoards].forEach((b) => {
+        allBoardsMap.set(b.id, b);
+      });
+
+      const allBoards = Array.from(allBoardsMap.values());
+
+      setTeams(teamsData);
+      setBoards(allBoards);
+
+      // 5. Fetch tasks for ALL boards
+      if (allBoards.length > 0) {
+        const taskResults = await Promise.all(
+          allBoards.map((b) =>
+            fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, {
+              headers: authHeaders(),
+            })
+              .then((r) => r.json() as Promise<PaginatedTasks>)
+              .catch(() => ({
+                data: [] as Task[],
+                pagination: { total: 0 },
+              }))
+          )
+        );
+
+        setTasks(taskResults.flatMap((r) => r.data ?? []));
+      }
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  })();
+
+}, [user, router]);
 
     console.log("boards:", boards)
 

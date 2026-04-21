@@ -32,3 +32,31 @@ export const COLUMN_CONFIG: Record<string, { color: string; bg: string; border: 
   "in progress": { color: "text-violet-400", bg: "bg-violet-500/10",  border: "border-violet-500/20", glow: "shadow-violet-500/20" },
   "completed":   { color: "text-emerald-400",bg: "bg-emerald-500/10", border: "border-emerald-500/20",glow: "shadow-emerald-500/10"},
 };
+
+export const isOverdue = (due: string) => due && !due.startsWith("0001") && new Date(due) < new Date();
+
+export const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+};
+
+export const isDueSoon = (due: string) => {
+  if (!due || due.startsWith("0001")) return false;
+  const diff = new Date(due).getTime() - Date.now();
+  return diff > 0 && diff < 86400000 * 3;
+};
+export const formatDue = (due: string) => {
+  if (!due || due.startsWith("0001")) return null;
+  const d    = new Date(due);
+  const diff = Math.ceil((d.getTime() - Date.now()) / 86400000);
+  if (diff < 0)  return { label: `${Math.abs(diff)}d overdue`, state: "overdue" };
+  if (diff === 0) return { label: "Due today",     state: "today"   };
+  if (diff === 1) return { label: "Due tomorrow",  state: "soon"    };
+  if (diff <= 3)  return { label: `Due in ${diff}d`, state: "soon"  };
+  return { label: d.toLocaleDateString("en", { month: "short", day: "numeric" }), state: "normal" };
+};
