@@ -64,7 +64,7 @@ export default function BoardPage() {
     if (!user) return;
     fetch(`http://localhost:8000/boards/${boardId}`, { headers: authHeaders() })
       .then((r) => { if (r.status === 401) router.push("/login"); return r.ok ? r.json() : null; })
-      .then((d) => d && console.log(d))
+      .then((d) => d && setBoard(d))
       .catch(console.error);
 
   }, [user, boardId, router]);
@@ -307,7 +307,7 @@ export default function BoardPage() {
 
   const handleTaskCreated = (task: Task) => {
     // console.log("Task ")
-    setTasks((p) => [task, ...p]);
+    // setTasks((p) => [task, ...p]);
     if (task.column?.id) setColumns((p) => p.find((c) => c.id === task.column.id) ? p : [...p, task.column]);
   };
 

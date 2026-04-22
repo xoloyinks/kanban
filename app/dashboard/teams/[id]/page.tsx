@@ -337,7 +337,7 @@ export default function TeamPage() {
     try {
       const [teamRes, boardsRes] = await Promise.all([
         fetch(`http://localhost:8000/teams/${teamId}`, { headers: authHeaders() }),
-        fetch("http://localhost:8000/boards", { headers: authHeaders() }),
+        fetch(`http://localhost:8000/boards?destination_id=${teamId}`, { headers: authHeaders() }),
       ]);
       if (teamRes.status === 401) { router.push("/login"); return; }
       if (teamRes.status === 404) { router.push("/dashboard"); return; }

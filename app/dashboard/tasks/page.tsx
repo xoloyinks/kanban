@@ -12,26 +12,26 @@ import Empty from "@/components/empty";
 export default function MyTasksPage() {
   const router = useRouter();
 
-  const [user, setUser]           = useState<User | null>(null);
-  const [boards, setBoards]       = useState<Board[]>([]);
-  const [allTasks, setAllTasks]   = useState<Task[]>([]);
-  const [columns, setColumns]     = useState<Column[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [mounted, setMounted]     = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   // filters
-  const [search, setSearch]       = useState("");
+  const [search, setSearch] = useState("");
   const [filterPri, setFilterPri] = useState("");
   const [filterCol, setFilterCol] = useState("");
   const [filterBoard, setFilterBoard] = useState("");
-  const [sortBy, setSortBy]       = useState<"created" | "due" | "priority">("created");
-  const [showDone, setShowDone]   = useState(true);
-  const [page, setPage]           = useState(1);
-  const LIMIT                     = 20;
+  const [sortBy, setSortBy] = useState<"created" | "due" | "priority">("created");
+  const [showDone, setShowDone] = useState(true);
+  const [page, setPage] = useState(1);
+  const LIMIT = 20;
 
   // panel
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [panelOpen, setPanelOpen]       = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -42,41 +42,85 @@ export default function MyTasksPage() {
     setUser(JSON.parse(ud));
   }, [mounted, router]);
 
-  // fetch all tasks across boards
-  const loadTasks = useCallback(async () => {
+  const loadUserTasks = useCallback(async () => {
     if (!user) return;
+
     setLoading(true);
+
     try {
-      const boardsRes = await fetch("http://localhost:8000/boards?destination_id=" + user.id, { headers: authHeaders() });
-      if (boardsRes.status === 401) { router.push("/login"); return; }
-      const boardList: Board[] = await boardsRes.json().then((d) => Array.isArray(d) ? d : []);
-      setBoards(boardList);
+      // 1. Build all destinations (user + teams)
+      const destinations = [user.id, ...(user.teams || [])];
 
-      if (boardList.length === 0) { setAllTasks([]); setLoading(false); return; }
-
-      // fetch tasks for all boards in parallel, filter by assignee
-      const results = await Promise.all(
-        boardList.map((b) =>
-          fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, { headers: authHeaders() })
-            .then((r) => r.json() as Promise<PaginatedTasks>)
-            .catch(() => ({ data: [] as Task[], pagination: { total: 0 } }))
+      // 2. Fetch boards in parallel
+      const boardResults = await Promise.all(
+        destinations.map((id) =>
+          fetch(`http://localhost:8000/boards?destination_id=${id}`, {
+            headers: authHeaders(),
+          })
+            .then((r) => {
+              if (r.status === 401) {
+                router.push("/login");
+                return [];
+              }
+              return r.json();
+            })
+            .then((d) => (Array.isArray(d) ? d : []))
+            .catch(() => [])
         )
       );
 
-      const all = results.flatMap((r) => r.data ?? []);
-      // filter to only tasks assigned to current user
-      const mine = all.filter((t) => t.destination_id === user.id);
-      setAllTasks(all);
+      // 3. Merge + dedupe boards
+      const boardMap = new Map<string, Board>();
+      boardResults.flat().forEach((b) => boardMap.set(b.id, b));
+      const boardList = Array.from(boardMap.values());
 
-      console.log(all)
-      // derive columns
+      setBoards(boardList);
+
+      if (boardList.length === 0) {
+        setAllTasks([]);
+        return;
+      }
+
+      // 4. Fetch tasks for all boards
+      const taskResults = await Promise.all(
+        boardList.map((b) =>
+          fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, {
+            headers: authHeaders(),
+          })
+            .then((r) => r.json() as Promise<PaginatedTasks>)
+            .catch(() => ({
+              data: [] as Task[],
+              pagination: { total: 0 },
+            }))
+        )
+      );
+
+      const all = taskResults.flatMap((r) => r.data ?? []);
+
+      // 5. Optional: filter tasks assigned to user
+      const mine = all.filter((t) => t.destination_id === user.id);
+
+      // 👉 choose what you actually want:
+      setAllTasks(all);   // all tasks (team + personal)
+      // setAllTasks(mine); // only user's tasks across all boards
+
+      // 6. derive columns
       const colMap = new Map<string, Column>();
-      mine.forEach((t) => { if (t.column?.id) colMap.set(t.column.id, t.column); });
+      all.forEach((t) => {
+        if (t.column?.id) colMap.set(t.column.id, t.column);
+      });
+
       setColumns(Array.from(colMap.values()));
-    } finally { setLoading(false); }
+
+    } finally {
+      setLoading(false);
+    }
   }, [user, router]);
 
-  useEffect(() => { loadTasks(); }, [loadTasks]);
+
+
+  useEffect(() => { loadUserTasks(); }, [loadUserTasks]);
+
 
   // apply filters + sort
   const filtered = allTasks
@@ -101,13 +145,13 @@ export default function MyTasksPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const paginated  = filtered.slice(0, page * LIMIT);
-  const hasMore    = filtered.length > paginated.length;
+  const paginated = filtered.slice(0, page * LIMIT);
+  const hasMore = filtered.length > paginated.length;
   const isFiltered = !!(search || filterPri || filterCol || filterBoard || !showDone);
 
   // stats
-  const done     = allTasks.filter((t) => t.column?.name?.toLowerCase() === "completed").length;
-  const active   = allTasks.filter((t) => t.column?.name?.toLowerCase() === "in progress").length;
+  const done = allTasks.filter((t) => t.column?.name?.toLowerCase() === "completed").length;
+  const active = allTasks.filter((t) => t.column?.name?.toLowerCase() === "in progress").length;
   const overdueN = allTasks.filter((t) => isOverdue(t.due_date) && t.column?.name?.toLowerCase() !== "completed").length;
   const dueSoonN = allTasks.filter((t) => isDueSoon(t.due_date) && t.column?.name?.toLowerCase() !== "completed").length;
 
@@ -177,11 +221,11 @@ export default function MyTasksPage() {
             transition={{ delay: 0.2 }}
           >
             {[
-              { label: "Total",       value: allTasks.length,  color: "text-zinc-400",    dot: "bg-zinc-500"    },
-              { label: "Completed",   value: done,             color: "text-emerald-400", dot: "bg-emerald-400" },
-              { label: "In Progress", value: active,           color: "text-violet-400",  dot: "bg-violet-400"  },
-              { label: "Overdue",     value: overdueN,         color: overdueN > 0 ? "text-red-400" : "text-zinc-600",   dot: overdueN > 0 ? "bg-red-400" : "bg-zinc-700" },
-              { label: "Due soon",    value: dueSoonN,         color: dueSoonN > 0 ? "text-yellow-400" : "text-zinc-600", dot: dueSoonN > 0 ? "bg-yellow-400" : "bg-zinc-700" },
+              { label: "Total", value: allTasks.length, color: "text-zinc-400", dot: "bg-zinc-500" },
+              { label: "Completed", value: done, color: "text-emerald-400", dot: "bg-emerald-400" },
+              { label: "In Progress", value: active, color: "text-violet-400", dot: "bg-violet-400" },
+              { label: "Overdue", value: overdueN, color: overdueN > 0 ? "text-red-400" : "text-zinc-600", dot: overdueN > 0 ? "bg-red-400" : "bg-zinc-700" },
+              { label: "Due soon", value: dueSoonN, color: dueSoonN > 0 ? "text-yellow-400" : "text-zinc-600", dot: dueSoonN > 0 ? "bg-yellow-400" : "bg-zinc-700" },
             ].map((s, i) => (
               <motion.div key={s.label} className="flex items-center gap-2 whitespace-nowrap" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 + i * 0.05 }}>
                 <div className={`w-2 h-2 rounded-full ${s.dot}`} />
