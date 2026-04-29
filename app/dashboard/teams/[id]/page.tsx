@@ -414,7 +414,7 @@ export default function TeamPage() {
   if (!team) return null;
 
   return (
-    <div className="p-6 space-y-8 max-w-4xl bg-zinc-950 h-screen" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="p-6 space-y-8 bg-zinc-950 overflow-y-scroll h-screen" style={{ fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* ── Team header ─────────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -637,7 +637,7 @@ export default function TeamPage() {
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: i * 0.06 }}
                   >
-                    <Link href={`/boards/${board.id}`}>
+                    <Link href={`/dashboard/boards/${board.id}`}>
                       <motion.div
                         className={`group relative p-4 rounded-2xl bg-gradient-to-br border overflow-hidden cursor-pointer transition-all duration-200 ${bc.grad} ${bc.border}`}
                         whileHover={{ y: -3, scale: 1.01 }}

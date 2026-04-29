@@ -12,9 +12,9 @@ export default function CreateBoardModal({
     onCreated,
 }: {
     open: boolean;
-    user: User | null;
+    user: User | undefined;
     onClose: () => void;
-    teams: string[];
+    teams: Team[];
     selectedTeam: Team | null;
     onCreated: (board: Board) => void;
 }) {
@@ -27,10 +27,12 @@ export default function CreateBoardModal({
     useEffect(() => {
         if (open) {
             setName("");
-            setTeamID(selectedTeam?.id ?? teams[0] ?? "");
+            setTeamID(selectedTeam?.id ?? teams[0].id ?? "");
             setError("");
         }
     }, [open, selectedTeam, teams]);
+
+    console.log(teams)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -159,7 +161,7 @@ export default function CreateBoardModal({
                                         >
                                             <option value="" disabled>Select a team</option>
                                             {teams.map((t) => (
-                                                <option key={t} value={t}>{"team name coming soon"}</option>
+                                                <option key={t.id} value={t.id}>{t.name.toLocaleUpperCase()}</option>
                                             ))}
                                         </select>
                                     </div>

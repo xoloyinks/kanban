@@ -9,6 +9,7 @@ import { authHeaders, getInitials, getToken, isOverdue, timeAgo } from "@/helper
 import AnimCounter from "@/components/animatedCounter";
 import Ring from "@/components/ringChart";
 import Bar from "@/components/bar";
+import { useGetUserQuery } from "../api/user";
 
 
 interface PaginatedTasks { data: Task[]; pagination: { total: number } }
@@ -16,19 +17,23 @@ interface PaginatedTasks { data: Task[]; pagination: { total: number } }
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
     const router = useRouter();
-    const [teams, setTeams] = useState<Team[]>([]);
-    const [user, setUser] = useState<User | null>(null);
+    const [teams, setTeams] = useState<Team[] | undefined>([]);
+    const [user, setUser] = useState<User | undefined>(undefined);
     const [boards, setBoards] = useState<Board[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [greeting, setGreeting] = useState("Good morning");
+    const { data } = useGetUserQuery(null);
 
     useEffect(() => {
-        const token = getToken(), ud = localStorage.getItem("user");
+        const token = getToken()
 
-        if (!token || !ud) { router.push("/login"); return; }
-        setUser(JSON.parse(ud));
-    }, [router]);
+        if (!token) { router.push("/auth/login"); return; }
+
+        setUser(data);
+        setTeams(data?.teams);
+
+    }, [router, data]);
 
     useEffect(() => {
         const h = new Date().getHours();
@@ -36,79 +41,69 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-  if (!user) return;
+        if (!user) return;
 
-  (async () => {
-    setLoading(true);
 
-    try {
-      // 1. Fetch teams + personal boards
-      const [teamsRes, personalBoardsRes] = await Promise.all([
-        fetch("http://localhost:8000/teams", { headers: authHeaders() }),
-        fetch(`http://localhost:8000/boards?destination_id=${user.id}`, { headers: authHeaders() }),
-      ]);
 
-      if (teamsRes.status === 401) {
-        router.push("/login");
-        return;
-      }
+        (async () => {
+            setLoading(true);
 
-      const teamsData: Team[] = await teamsRes.json().then(d => Array.isArray(d) ? d : []);
-      const personalBoards: Board[] = await personalBoardsRes.json().then(d => Array.isArray(d) ? d : []);
+            try {
+                const personalBoardsRes = await fetch(`http://localhost:8000/boards?destination_id=${user.id}`, { headers: authHeaders() })
+                
+                
 
-      // 2. Fetch boards for each team
-      const teamBoardResponses = await Promise.all(
-        (user.teams || []).map((tid) =>
-          fetch(`http://localhost:8000/boards?destination_id=${tid}`, {
-            headers: authHeaders(),
-          }).then(res => res.json())
-        )
-      );
+                const personalBoards: Board[] = await personalBoardsRes.json().then(d => Array.isArray(d) ? d : []);
 
-      // 3. Flatten team boards
-      const teamBoards: Board[] = teamBoardResponses.flat().filter(Boolean);
+                // 2. Fetch boards for each team
+                const teamBoardResponses = await Promise.all(
+                    (user.teams || []).map((tid) =>
+                        fetch(`http://localhost:8000/boards?destination_id=${tid.id}`, {
+                            headers: authHeaders(),
+                        }).then(res => res.json())
+                    )
+                );
 
-      // 4. Merge + dedupe (IMPORTANT)
-      const allBoardsMap = new Map<string, Board>();
+                // 3. Flatten team boards
+                const teamBoards: Board[] = teamBoardResponses.flat().filter(Boolean);
 
-      [...personalBoards, ...teamBoards].forEach((b) => {
-        allBoardsMap.set(b.id, b);
-      });
+                // 4. Merge + dedupe (IMPORTANT)
+                const allBoardsMap = new Map<string, Board>();
 
-      const allBoards = Array.from(allBoardsMap.values());
+                [...personalBoards, ...teamBoards].forEach((b) => {
+                    allBoardsMap.set(b.id, b);
+                });
 
-      setTeams(teamsData);
-      setBoards(allBoards);
+                const allBoards = Array.from(allBoardsMap.values());
 
-      // 5. Fetch tasks for ALL boards
-      if (allBoards.length > 0) {
-        const taskResults = await Promise.all(
-          allBoards.map((b) =>
-            fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, {
-              headers: authHeaders(),
-            })
-              .then((r) => r.json() as Promise<PaginatedTasks>)
-              .catch(() => ({
-                data: [] as Task[],
-                pagination: { total: 0 },
-              }))
-          )
-        );
+                setBoards(allBoards);
 
-        setTasks(taskResults.flatMap((r) => r.data ?? []));
-      }
+                // 5. Fetch tasks for ALL boards
+                if (allBoards.length > 0) {
+                    const taskResults = await Promise.all(
+                        allBoards.map((b) =>
+                            fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, {
+                                headers: authHeaders(),
+                            })
+                                .then((r) => r.json() as Promise<PaginatedTasks>)
+                                .catch(() => ({
+                                    data: [] as Task[],
+                                    pagination: { total: 0 },
+                                }))
+                        )
+                    );
 
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  })();
+                    setTasks(taskResults.flatMap((r) => r.data ?? []));
+                }
 
-}, [user, router]);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        })();
 
-    console.log("boards:", boards)
-
+    }, [user, router]);
     // ── Computed stats ────────────────────────────────────────────────────────
     const completed = tasks.filter((t) => t.column?.name?.toLowerCase() === "completed");
     const inProgress = tasks.filter((t) => t.column?.name?.toLowerCase() === "in progress");
@@ -261,16 +256,16 @@ export default function DashboardPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 {[
                                     {
-                                        label: "Teams", value: teams.length, sub: "Active workspaces", color: "text-cyan-300", accent: "#67e8f9",
+                                        label: "Teams", value: teams?.length, sub: "Active workspaces", color: "text-cyan-300", accent: "#67e8f9",
                                         icon: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="7" cy="6" r="3" stroke="#67e8f9" strokeWidth="1.4" /><circle cx="13" cy="6" r="2" stroke="#67e8f9" strokeWidth="1.4" opacity="0.5" /><path d="M1 15c0-2.761 2.686-4 6-4s6 1.239 6 4" stroke="#67e8f9" strokeWidth="1.4" strokeLinecap="round" /><path d="M13 11c1.657 0 3 .895 3 2.5" stroke="#67e8f9" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" /></svg>,
                                         extra: (
                                             <div className="flex -space-x-2 mt-3">
-                                                {teams.slice(0, 5).map((t, i) => (
+                                                {teams?.slice(0, 5).map((t, i) => (
                                                     <div key={t.id} className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 border-2 border-zinc-900 flex items-center justify-center text-white font-bold" style={{ fontSize: "9px", zIndex: 5 - i }}>
                                                         {getInitials(t.name)}
                                                     </div>
                                                 ))}
-                                                {teams.length > 5 && <div className="w-7 h-7 rounded-full bg-zinc-800 border-2 border-zinc-900 flex items-center justify-center text-zinc-500 text-xs">+{teams.length - 5}</div>}
+                                                {teams && teams?.length > 5 && <div className="w-7 h-7 rounded-full bg-zinc-800 border-2 border-zinc-900 flex items-center justify-center text-zinc-500 text-xs">+{teams.length - 5}</div>}
                                             </div>
                                         ),
                                     },
@@ -479,7 +474,7 @@ export default function DashboardPage() {
                                             <p className="text-red-300 text-sm font-semibold">{overdue.length} overdue task{overdue.length !== 1 ? "s" : ""}</p>
                                             <p className="text-red-400/50 text-xs mt-0.5">These tasks have passed their due date. Review them soon.</p>
                                         </div>
-                                        <Link href="/dashboard/all-boards">
+                                        <Link href="/dashboard/tasks">
                                             <motion.span
                                                 className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors whitespace-nowrap"
                                                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
@@ -492,7 +487,7 @@ export default function DashboardPage() {
                             </AnimatePresence>
 
                             {/* ── Empty workspace ───────────────────────────────────────── */}
-                            {tasks.length === 0 && teams.length === 0 && (
+                            {tasks.length === 0 && teams?.length === 0 && (
                                 <motion.div
                                     className="rounded-2xl p-10 border border-dashed border-zinc-800 text-center"
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}

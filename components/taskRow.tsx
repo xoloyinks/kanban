@@ -22,7 +22,7 @@ export default function TaskRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ delay: index * 0.04, duration: 0.3 }}
-      className={`group flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+      className={`group flex items-center my-2 gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 cursor-pointer ${
         done
           ? "bg-zinc-900/30 border-zinc-800/30 opacity-60 hover:opacity-80"
           : "bg-zinc-900 border-zinc-800/60 hover:border-zinc-700/60 hover:bg-zinc-900/80"

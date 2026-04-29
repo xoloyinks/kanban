@@ -25,7 +25,7 @@ export default function SideNav(
         collapsed,
         onCollapse,
     }: {
-        user: User | null;
+        user: User | undefined;
         teams: Team[];
         boards: Board[];
         selectedTeam: Team | null;

@@ -49,7 +49,8 @@ export default function MyTasksPage() {
 
     try {
       // 1. Build all destinations (user + teams)
-      const destinations = [user.id, ...(user.teams || [])];
+      const teamId = user.teams.map(t => t.id)
+      const destinations = [user.id, ...(teamId || [])];
 
       // 2. Fetch boards in parallel
       const boardResults = await Promise.all(
@@ -59,7 +60,7 @@ export default function MyTasksPage() {
           })
             .then((r) => {
               if (r.status === 401) {
-                router.push("/login");
+                router.push("/auth/login");
                 return [];
               }
               return r.json();

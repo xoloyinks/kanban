@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useGetUserQuery } from "@/app/api/user";
 
 // Floating particle component
 const Particle = ({ delay, x, y }: { delay: number; x: number; y: number }) => (
@@ -74,7 +75,7 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      // localStorage.setItem("user", JSON.stringify(user));
       window.location.href = "/dashboard";
     } catch {
       setError("Unable to connect to servers");

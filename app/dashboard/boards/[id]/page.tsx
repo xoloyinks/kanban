@@ -23,6 +23,7 @@ import TaskModal from "@/components/taskModal";
 import CreateTaskModal from "@/components/createTaskModal";
 import OverlayCard from "@/components/overlayCard";
 import DroppableColumn from "@/components/droppableColumn";
+import { useGetUserQuery } from "@/app/api/user";
 
 export default function BoardPage() {
   const params = useParams();
@@ -33,7 +34,7 @@ export default function BoardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]); // server columns
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -42,6 +43,7 @@ export default function BoardPage() {
   const [filterPriority, setFilterPriority] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [liveCount, setLiveCount] = useState(0);
+  const { data } = useGetUserQuery(null)
 
   // DnD state
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -55,10 +57,10 @@ export default function BoardPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    const token = getToken(), ud = localStorage.getItem("user");
-    if (!token || !ud) { router.push("/login"); return; }
-    setUser(JSON.parse(ud));
-  }, [mounted, router]);
+    const token = getToken()
+    if (!token) { router.push("/auth/login"); return; }
+    setUser(data);
+  }, [mounted, router, data]);
 
   useEffect(() => {
     if (!user) return;
@@ -397,7 +399,7 @@ export default function BoardPage() {
               <div key={col} className="w-72 flex-shrink-0 space-y-3">
                 <motion.div className="h-6 w-28 rounded-lg bg-zinc-800" animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }} />
                 {Array.from({ length: 3 }).map((_, j) => (
-                  <motion.div key={j} className="h-28 rounded-xl bg-zinc-900 border border-zinc-800" animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 + j * 0.07 }} />
+                  <motion.div key={j} className="h-screen rounded-xl bg-zinc-900 border border-zinc-800" animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 + j * 0.07 }} />
                 ))}
               </div>
             ))}
@@ -411,7 +413,7 @@ export default function BoardPage() {
             onDragEnd={handleDragEnd}
           >
             <div className="flex gap-5 p-6 h-full min-w-max">
-              
+              okayss
               {columnDefs.map((colDef, i) => (
                 <motion.div
                   key={colDef.name}
@@ -419,6 +421,7 @@ export default function BoardPage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.08, duration: 0.4 }}
                 >
+                  okay
                   <DroppableColumn
                     colDef={colDef}
                     isOver={overColumn === colDef.name}

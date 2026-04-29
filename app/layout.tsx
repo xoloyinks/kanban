@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import "./globals.css";
 import { DM_Serif_Display, DM_Mono } from "next/font/google"
+import { Providers } from "./provider";
 
 const dmSerif = DM_Serif_Display({ subsets: ["latin"], weight: "400" })
 const dmMono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"] })
@@ -21,7 +22,9 @@ export default function RootLayout({
       lang="en"
       className={`${dmSerif.className} ${dmMono.className} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

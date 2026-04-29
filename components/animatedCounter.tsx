@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 
-export default function AnimCounter({ value, duration = 1100 }: { value: number; duration?: number }) {
+export default function AnimCounter({ value, duration = 1100 }: { value: number | undefined; duration?: number }) {
   const [n, setN] = useState(0);
       const prev = useRef(0);
       useEffect(() => {
-          const start = prev.current, end = value;
+          const start = prev.current, end = value || 0;
           const step = (end - start) / (duration / 16);
           let cur = start;
           const t = setInterval(() => {

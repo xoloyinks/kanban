@@ -8,10 +8,11 @@ import { authHeaders, getInitials, getToken } from "@/helpers/helpers";
 import CreateBoardModal from "@/components/createBoardModal";
 import BoardCard from "@/components/boardCard";
 import EmptyBoards from "@/components/emptyBoards";
+import { useGetUserQuery } from "@/app/api/user";
 
 export default function AllBoards() {
     const router = useRouter();
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<User | undefined>(undefined);
     const [teams, setTeams] = useState<Team[]>([]);
     const [boards, setBoards] = useState<Board[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -19,6 +20,7 @@ export default function AllBoards() {
     const [showCreateBoard, setShowCreateBoard] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const { data } = useGetUserQuery(null)
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -26,42 +28,16 @@ export default function AllBoards() {
     useEffect(() => {
         if (!mounted) return;
         const token = getToken();
-        const userData = localStorage.getItem("user");
-        if (!token || !userData) { router.push("/auth/login"); return; }
-        setUser(JSON.parse(userData));
-    }, [mounted, router]);
+        // const userData = localStorage.getItem("user");
+        if (!token) { router.push("/auth/login"); return; }
+        setUser(data);
+    }, [mounted, data]);
 
     // fetch teams
     useEffect(() => {
     if (!user?.teams?.length) return;
 
-    const fetchTeams = async () => {
-        try {
-            const teamPromises = user.teams.map((teamId: string) =>
-                fetch(`http://localhost:8000/teams/${teamId}`, {
-                    headers: authHeaders(),
-                }).then(res => {
-                    if (res.status === 401) {
-                        router.push("/auth/login");
-                        return null;
-                    }
-                    return res.json();
-                })
-            );
-
-            const results = await Promise.all(teamPromises);
-
-            // remove failed/null responses
-            const validTeams: Team[] = results.filter(Boolean);
-
-            setTeams(validTeams);
-
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    fetchTeams();
+    setTeams(user.teams)
 }, [user, router]);
 
     // fetch team boards
@@ -110,9 +86,6 @@ export default function AllBoards() {
 
     }, [user, router]);
 
-    const teamBoards = boards.filter(
-        (b) => b.destination_id === user?.id
-    );
 
     const filteredBoards = boards.filter((b) =>
         b.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -305,7 +278,7 @@ export default function AllBoards() {
                 open={showCreateBoard}
                 user={user}
                 onClose={() => setShowCreateBoard(false)}
-                teams={teams.map(t => t.name )}
+                teams={teams}
                 selectedTeam={selectedTeam}
                 onCreated={(board) => setBoards((prev) => [...prev, board])}
             />

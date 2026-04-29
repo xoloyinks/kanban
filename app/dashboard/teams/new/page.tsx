@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { User } from "@/structs/types";
 import { authHeaders, getInitials, getToken } from "@/helpers/helpers";
 import MemberRow from "@/components/memberRow";
+import { useCreateTeamMutation } from "@/app/api/team";
 
 // ─── Floating background dot ──────────────────────────────────────────────────
 const Dot = ({ x, y, size, delay }: { x: number; y: number; size: number; delay: number }) => (
@@ -45,6 +46,8 @@ export default function NewTeamPage() {
   const [success, setSuccess]     = useState(false);
   const [createdTeamId, setCreatedTeamId] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
+
+  const [ createTeam, {data: teamData} ] = useCreateTeamMutation();
 
 //   get user from localstorage
   const getUser = () : User | null => {
@@ -87,26 +90,13 @@ export default function NewTeamPage() {
     setError("");
 
     try {
-      // 1. create the team
-      const teamRes = await fetch("http://localhost:8000/team", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), created_by: getUser()?.email }),
-      });
-
-      const teamData = await teamRes.json();
-      if (!teamRes.ok) { setError(teamData.error || "Failed to create team"); return; }
-
-      const teamId = teamData.teamId;
-
-       console.log(teamData)
-      setCreatedTeamId(teamId);
+      const res = await createTeam({ name: name.trim(), description: description.trim(), created_by: getUser()?.email }).unwrap();
 
       // 2. invite members (fire all in parallel, ignore individual failures)
       if (members.length > 0) {
         await Promise.allSettled(
           members.map((m) =>
-            fetch(`http://localhost:8000/addMember/${teamId}`, {
+            fetch(`http://localhost:8000/addMember/${teamData?.id}`, {
               method: "POST",
               headers: authHeaders(),
               body: JSON.stringify({ email: m.email, role: m.role }),
@@ -125,6 +115,12 @@ export default function NewTeamPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (teamData) {
+      setCreatedTeamId(teamData.id);
+    }
+  }, [teamData]);
 
   if (!mounted) return null;
  

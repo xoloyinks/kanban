@@ -29,7 +29,7 @@ export default function DroppableColumn({
         setRenaming(false);
       };
   return (
-    <div className="flex flex-col w-72 shrink-0">
+    <div className="flex flex-col overflow-hidden max-h-150 w-72 shrink-0">
       {/* Column header */}
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
@@ -78,10 +78,11 @@ export default function DroppableColumn({
       {/* Drop zone */}
       <div
         ref={setNodeRef}
-        className={`flex-1 rounded-2xl p-3 min-h-[400px] border transition-all duration-200 space-y-3 ${isOver
+        className={`flex-1 rounded-2xl p-3 border max-h-150 overflow-y-auto transition-all duration-200 space-y-3 ${isOver
           ? `${cfg.border} bg-zinc-900/60 ring-2 ${cfg.border} ring-offset-2 ring-offset-zinc-950`
           : `${cfg.border} bg-zinc-950/40`
           }`}
+
       >
         {/* Drop indicator */}
         <AnimatePresence>
