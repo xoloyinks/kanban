@@ -413,7 +413,6 @@ export default function BoardPage() {
             onDragEnd={handleDragEnd}
           >
             <div className="flex gap-5 p-6 h-full min-w-max">
-              okayss
               {columnDefs.map((colDef, i) => (
                 <motion.div
                   key={colDef.name}
@@ -421,7 +420,6 @@ export default function BoardPage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.08, duration: 0.4 }}
                 >
-                  okay
                   <DroppableColumn
                     colDef={colDef}
                     isOver={overColumn === colDef.name}

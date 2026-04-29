@@ -18,7 +18,7 @@ const authHeaders = () => ({ "Content-Type": "application/json", Authorization: 
 const getInitials = (str: string) => str?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 const timeAgo     = (ds: string) => {
   const d = Math.floor((Date.now() - new Date(ds).getTime()) / 86400000);
-  if (d === 0) return "Today";
+  if (d === 0 || isNaN(d)) return "Today";
   if (d === 1) return "Yesterday";
   if (d < 30)  return `${d}d ago`;
   if (d < 365) return `${Math.floor(d / 30)}mo ago`;
