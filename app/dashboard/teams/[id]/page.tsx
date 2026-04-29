@@ -4,18 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { authHeaders, getInitials, getToken } from "@/helpers/helpers";
+import { Board, Member, Team, TeamWithMembers, User } from "@/structs/types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface User   { id: string; name: string; email: string; }
-interface Team   { id: string; name: string; description: string; created_by: string; created_at: string; }
-interface Member { id: string; team_id: string; email: string; role: string; created_at: string; }
-interface TeamWithMembers extends Team { members: Member[]; }
-interface Board  { id: string; name: string; destination_id: string; }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const getToken    = () => typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
-const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
-const getInitials = (str: string) => str?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 const timeAgo     = (ds: string) => {
   const d = Math.floor((Date.now() - new Date(ds).getTime()) / 86400000);
   if (d === 0 || isNaN(d)) return "Today";
@@ -422,7 +414,7 @@ export default function TeamPage() {
           <div className="flex items-start gap-4">
             {/* Avatar */}
             <motion.div
-              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-lg font-black flex-shrink-0 shadow-lg shadow-violet-500/20"
+              className="w-14 h-14 rounded-2xl bg-linear-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-lg font-black shrink-0 shadow-lg shadow-violet-500/20"
               whileHover={{ rotate: 5, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
@@ -536,7 +528,7 @@ export default function TeamPage() {
                     className="group flex items-center gap-4 px-4 py-3 rounded-xl bg-zinc-900/60 border border-zinc-800/60 hover:border-zinc-700/60 transition-all"
                   >
                     {/* Avatar */}
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-zinc-700 to-zinc-800 border border-zinc-700/50 flex items-center justify-center text-zinc-300 text-xs font-bold flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-linear-to-br from-zinc-700 to-zinc-800 border border-zinc-700/50 flex items-center justify-center text-zinc-300 text-xs font-bold shrink-0">
                       {getInitials(member.email.split("@")[0])}
                     </div>
 
@@ -639,14 +631,14 @@ export default function TeamPage() {
                   >
                     <Link href={`/dashboard/boards/${board.id}`}>
                       <motion.div
-                        className={`group relative p-4 rounded-2xl bg-gradient-to-br border overflow-hidden cursor-pointer transition-all duration-200 ${bc.grad} ${bc.border}`}
+                        className={`group relative p-4 rounded-2xl bg-linear-to-br border overflow-hidden cursor-pointer transition-all duration-200 ${bc.grad} ${bc.border}`}
                         whileHover={{ y: -3, scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
                         transition={{ type: "spring", stiffness: 400, damping: 25 }}
                       >
                         {/* Shimmer */}
                         <motion.div
-                          className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100"
+                          className="absolute inset-0 -skew-x-12 bg-linear-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100"
                           animate={{ x: ["-100%", "200%"] }}
                           transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 0.5 }}
                         />
@@ -657,7 +649,7 @@ export default function TeamPage() {
                             <p className="text-zinc-600 text-xs mt-1">{team.name}</p>
                           </div>
                           <motion.div
-                            className="text-zinc-700 group-hover:text-zinc-500 transition-colors flex-shrink-0 ml-2"
+                            className="text-zinc-700 group-hover:text-zinc-500 transition-colors shrink-0 ml-2"
                             animate={{ x: [0, 2, 0] }}
                             transition={{ duration: 1.5, repeat: Infinity }}
                           >
@@ -676,7 +668,7 @@ export default function TeamPage() {
             {/* Create board card */}
             <motion.button
               onClick={() => setShowCreateBoard(true)}
-              className="group p-4 rounded-2xl border border-dashed border-zinc-800 hover:border-violet-500/30 text-zinc-700 hover:text-violet-400 flex flex-col items-center justify-center gap-2 transition-all min-h-[80px]"
+              className="group p-4 rounded-2xl border border-dashed border-zinc-800 hover:border-violet-500/30 text-zinc-700 hover:text-violet-400 flex flex-col items-center justify-center gap-2 transition-all min-h-20"
               whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
             >
               <motion.div whileHover={{ rotate: 90 }} transition={{ duration: 0.15 }}>
@@ -703,7 +695,7 @@ export default function TeamPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                       <path d="M9 6v4M9 12v.5" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round" />
                       <path d="M7.5 2.5l-6 11A1.5 1.5 0 003 16h12a1.5 1.5 0 001.3-2.25l-6-11a1.5 1.5 0 00-2.6 0z" stroke="#f87171" strokeWidth="1.3" strokeLinejoin="round" />

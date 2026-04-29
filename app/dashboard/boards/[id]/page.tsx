@@ -339,7 +339,7 @@ export default function BoardPage() {
           </Link>
           <span className="text-zinc-800">/</span>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
+            <div className="w-5 h-5 rounded-md bg-linear-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <rect x="1" y="1" width="3.5" height="3.5" rx="0.8" fill="white" opacity="0.9" />
                 <rect x="5.5" y="1" width="3.5" height="3.5" rx="0.8" fill="white" opacity="0.5" />
@@ -385,7 +385,7 @@ export default function BoardPage() {
             </svg>
             <span className="hidden sm:inline">New task</span>
           </motion.button>
-          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold cursor-pointer flex-shrink-0">
+          <div className="w-7 h-7 rounded-xl bg-linear-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold cursor-pointer shrink-0">
             {user ? getInitials(user.name) : "?"}
           </div>
         </div>
@@ -396,7 +396,7 @@ export default function BoardPage() {
         {loading ? (
           <div className="flex gap-5 p-6 h-full">
             {FIXED_COLUMNS.map((col, i) => (
-              <div key={col} className="w-72 flex-shrink-0 space-y-3">
+              <div key={col} className="w-72 shrink-0 space-y-3">
                 <motion.div className="h-6 w-28 rounded-lg bg-zinc-800" animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }} />
                 {Array.from({ length: 3 }).map((_, j) => (
                   <motion.div key={j} className="h-screen rounded-xl bg-zinc-900 border border-zinc-800" animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 + j * 0.07 }} />

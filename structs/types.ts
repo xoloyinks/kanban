@@ -67,3 +67,6 @@ export const COLUMN: Record<string, { color: string; bg: string; dot: string }> 
   "in progress": { color: "text-violet-400",  bg: "bg-violet-500/10",    dot: "bg-violet-400"  },
   "completed":   { color: "text-emerald-400", bg: "bg-emerald-500/10",   dot: "bg-emerald-400" },
 };
+
+export interface Member { id: string; team_id: string; email: string; role: string; created_at: string; }
+export interface TeamWithMembers extends Team { members: Member[]; }

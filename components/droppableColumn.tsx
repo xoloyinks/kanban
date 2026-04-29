@@ -18,7 +18,7 @@ export default function DroppableColumn({
     const { setNodeRef } = useDroppable({ id: colDef.name }); // use name as droppable id
       const cfg = COLUMN_CONFIG[colDef.name] ?? COLUMN_CONFIG["todo"];
       const [renaming, setRenaming] = useState(false);
-      const [newName, setNewName] = useState(colDef.name);
+      const [newName, setNewName] = useState<string>(colDef.name);
       const inputRef = useRef<HTMLInputElement>(null);
     
       useEffect(() => { if (renaming) inputRef.current?.focus(); }, [renaming]);
