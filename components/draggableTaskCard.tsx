@@ -2,7 +2,6 @@ import { formatDate, PRIORITY_CONFIG } from '@/helpers/helpers';
 import { Task } from '@/structs/types';
 import { motion } from 'framer-motion';
 import { useDraggable } from '@dnd-kit/core';
-import React from 'react'
 
 export default function DraggableTaskCard(
     {

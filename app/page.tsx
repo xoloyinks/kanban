@@ -31,27 +31,27 @@ export default function LandingPage() {
           {/* Grid */}
           {Array.from({ length: 11 }).map((_, i) => (
             <motion.div key={`h-${i}`}
-              className="absolute h-px w-full bg-gradient-to-r from-transparent via-zinc-800/60 to-transparent"
+              className="absolute h-px w-full bg-linear-to-r from-transparent via-zinc-800/60 to-transparent"
               style={{ top: `${i * 10}%` }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               transition={{ delay: i * 0.06, duration: 1 }} />
           ))}
           {Array.from({ length: 11 }).map((_, i) => (
             <motion.div key={`v-${i}`}
-              className="absolute w-px h-full bg-gradient-to-b from-transparent via-zinc-800/60 to-transparent"
+              className="absolute w-px h-full bg-linear-to-b from-transparent via-zinc-800/60 to-transparent"
               style={{ left: `${i * 10}%` }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               transition={{ delay: i * 0.06, duration: 1 }} />
           ))}
 
-          {/* Radial gradient center glow */}
+          {/* Radial linear center glow */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.15),transparent)]" />
         </div>
 
         {/* Orbs */}
-        <Orb className="w-[500px] h-[500px] bg-violet-600/25 -top-40 -left-32" delay={0} />
-        <Orb className="w-[400px] h-[400px] bg-cyan-500/20 top-20 -right-20" delay={3} />
-        <Orb className="w-[300px] h-[300px] bg-fuchsia-600/15 bottom-0 left-1/3" delay={6} />
+        <Orb className="w-125 h-125 bg-violet-600/25 -top-40 -left-32" delay={0} />
+        <Orb className="w-100 h-100 bg-cyan-500/20 top-20 -right-20" delay={3} />
+        <Orb className="w-75 h-75 bg-fuchsia-600/15 bottom-0 left-1/3" delay={6} />
 
         <motion.div
           style={{ y: heroY, opacity: heroOpacity }}
@@ -90,7 +90,7 @@ export default function LandingPage() {
           >
             <span className="text-white">Ship faster.</span>
             <br />
-            <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
               Together.
             </span>
           </motion.h1>
@@ -114,12 +114,12 @@ export default function LandingPage() {
           >
             <Link href="/register">
               <motion.span
-                className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-semibold text-sm relative overflow-hidden"
+                className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-linear-to-r from-violet-600 to-cyan-600 text-white font-semibold text-sm relative overflow-hidden"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
                 <motion.div
-                  className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                  className="absolute inset-0 -skew-x-12 bg-linear-to-r from-transparent via-white/10 to-transparent"
                   animate={{ x: ["-100%", "200%"] }}
                   transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 2 }}
                 />
@@ -175,7 +175,7 @@ export default function LandingPage() {
         >
           <span className="text-zinc-700 text-xs tracking-widest uppercase">Scroll</span>
           <motion.div
-            className="w-px h-10 bg-gradient-to-b from-zinc-700 to-transparent"
+            className="w-px h-10 bg-linear-to-b from-zinc-700 to-transparent"
             animate={{ scaleY: [1, 0.5, 1], opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           />
@@ -197,7 +197,7 @@ export default function LandingPage() {
                 className="relative"
               >
                 {/* Outer glow */}
-                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-br from-violet-500/20 via-transparent to-cyan-500/20 blur-xl" />
+                <div className="absolute -inset-1 rounded-3xl bg-linear-to-br from-violet-500/20 via-transparent to-cyan-500/20 blur-xl" />
 
                 {/* App mockup */}
                 <div className="relative bg-zinc-900 rounded-2xl border border-zinc-800/80 overflow-hidden shadow-2xl shadow-violet-500/10">
@@ -224,7 +224,7 @@ export default function LandingPage() {
                     {/* Sidebar */}
                     <div className="w-52 border-r border-zinc-800 p-4 bg-zinc-950/50 hidden md:block">
                       <div className="flex items-center gap-2 mb-6 px-2">
-                        <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-500 to-cyan-500" />
+                        <div className="w-6 h-6 rounded bg-linear-to-br from-violet-500 to-cyan-500" />
                         <span className="text-white text-xs font-semibold">Engineering</span>
                       </div>
                       <div className="space-y-1">
@@ -394,7 +394,7 @@ export default function LandingPage() {
                 </Tag>
                 <h2 className="text-4xl md:text-5xl font-black mt-5 mb-4 tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
                   Built for how teams<br />
-                  <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">actually work</span>
+                  <span className="bg-linear-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">actually work</span>
                 </h2>
                 <p className="text-zinc-500 text-lg max-w-xl mx-auto">
                   No bloat. No enterprise overhead. Just the tools your team needs to ship fast.
@@ -475,7 +475,7 @@ export default function LandingPage() {
                 </Tag>
                 <h2 className="text-4xl md:text-5xl font-black mt-5 mb-4 tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
                   Up and running<br />
-                  <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">in 3 steps</span>
+                  <span className="bg-linear-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">in 3 steps</span>
                 </h2>
               </motion.div>
             );
@@ -483,7 +483,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-8 relative">
             {/* Connector line */}
-            <div className="hidden md:block absolute top-10 left-1/3 right-1/3 h-px bg-gradient-to-r from-violet-500/30 via-cyan-500/30 to-violet-500/30" />
+            <div className="hidden md:block absolute top-10 left-1/3 right-1/3 h-px bg-linear-to-r from-violet-500/30 via-cyan-500/30 to-violet-500/30" />
 
             {[
               {
@@ -515,7 +515,7 @@ export default function LandingPage() {
                   transition={{ duration: 0.6, delay: i * 0.15 }}
                   className="relative text-center"
                 >
-                  <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${step.color} mx-auto mb-6 flex items-center justify-center shadow-lg`}>
+                  <div className={`w-20 h-20 rounded-2xl bg-linear-to-br ${step.color} mx-auto mb-6 flex items-center justify-center shadow-lg`}>
                     <span className="text-white font-black text-xl" style={{ fontFamily: "'Syne', sans-serif" }}>
                       {step.step}
                     </span>
@@ -583,8 +583,8 @@ export default function LandingPage() {
       <section className="py-32 relative overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,rgba(139,92,246,0.12),transparent)]" />
-          <Orb className="w-[500px] h-[500px] bg-violet-600/20 -top-40 left-0" delay={2} />
-          <Orb className="w-[400px] h-[400px] bg-cyan-500/15 -bottom-20 right-0" delay={4} />
+          <Orb className="w-125 h-125 bg-violet-600/20 -top-40 left-0" delay={2} />
+          <Orb className="w-100 h-100 bg-cyan-500/15 -bottom-20 right-0" delay={4} />
         </div>
 
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
@@ -599,7 +599,7 @@ export default function LandingPage() {
               >
                 <h2 className="text-5xl md:text-6xl font-black tracking-tight mb-6" style={{ fontFamily: "'Syne', sans-serif" }}>
                   Ready to ship<br />
-                  <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
+                  <span className="bg-linear-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
                     faster?
                   </span>
                 </h2>
@@ -609,12 +609,12 @@ export default function LandingPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <Link href="/register">
                     <motion.span
-                      className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-bold text-base relative overflow-hidden"
+                      className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-linear-to-r from-violet-600 to-cyan-600 text-white font-bold text-base relative overflow-hidden"
                       whileHover={{ scale: 1.04 }}
                       whileTap={{ scale: 0.97 }}
                     >
                       <motion.div
-                        className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                        className="absolute inset-0 -skew-x-12 bg-linear-to-r from-transparent via-white/10 to-transparent"
                         animate={{ x: ["-100%", "200%"] }}
                         transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 2 }}
                       />

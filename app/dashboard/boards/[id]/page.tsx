@@ -391,7 +391,7 @@ export default function BoardPage() {
       </header>
 
       {/* ── Board area ──────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+      <div className="flex-1 overflow-y-hidden">
         {loading ? (
           <div className="flex gap-5 p-6 h-full">
             {FIXED_COLUMNS.map((col, i) => (
