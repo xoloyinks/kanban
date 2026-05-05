@@ -7,7 +7,7 @@ const getToken = () => typeof window !== "undefined"
 export const api = createApi({
     reducerPath: "api",
     baseQuery: fetchBaseQuery({
-        baseUrl: "http://localhost:8000",
+        baseUrl: "https://task-api-5zuk.onrender.com",
         prepareHeaders: (headers) => {
             const token = getToken();
             if (token) headers.set("Authorization", `Bearer ${token}`);
