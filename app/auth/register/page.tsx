@@ -112,15 +112,6 @@ export default function RegisterPage() {
 
   const inputClass = "w-full bg-[#0D0D0D] text-white placeholder-white/20 rounded-xl pl-11 pr-4 py-3.5 text-sm outline-none";
 
-  const fieldVariants = {
-    hidden: { opacity: 0, x: -20 },
-    visible: (i: number) => ({
-      opacity: 1,
-      x: 0,
-      transition: { delay: 0.3 + i * 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] },
-    }),
-  };
-
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center overflow-hidden relative">
       {/* Background effects */}
@@ -256,7 +247,7 @@ export default function RegisterPage() {
                   exit={{ opacity: 0 }}
                 >
                   {/* Name field */}
-                  <motion.div custom={0} variants={fieldVariants} initial="hidden" animate="visible">
+                  <motion.div custom={0} initial="hidden" animate="visible">
                     <label
                       className="block text-xs font-medium text-white/50 mb-2 uppercase tracking-widest"
                       style={{ fontFamily: "'DM Mono', monospace" }}
@@ -298,7 +289,7 @@ export default function RegisterPage() {
                   </motion.div>
 
                   {/* Email field */}
-                  <motion.div custom={1} variants={fieldVariants} initial="hidden" animate="visible">
+                  <motion.div custom={1} initial="hidden" animate="visible">
                     <label
                       className="block text-xs font-medium text-white/50 mb-2 uppercase tracking-widest"
                       style={{ fontFamily: "'DM Mono', monospace" }}
@@ -339,7 +330,7 @@ export default function RegisterPage() {
                   </motion.div>
 
                   {/* Password field */}
-                  <motion.div custom={2} variants={fieldVariants} initial="hidden" animate="visible">
+                  <motion.div custom={2} initial="hidden" animate="visible">
                     <label
                       className="block text-xs font-medium text-white/50 mb-2 uppercase tracking-widest"
                       style={{ fontFamily: "'DM Mono', monospace" }}
@@ -422,7 +413,6 @@ export default function RegisterPage() {
                   {/* Submit */}
                   <motion.div
                     custom={3}
-                    variants={fieldVariants}
                     initial="hidden"
                     animate="visible"
                   >
