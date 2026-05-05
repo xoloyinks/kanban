@@ -30,7 +30,7 @@ export default function AddMemberModal(
         e.preventDefault();
         setLoading(true); setError("");
         try {
-          const res = await fetch(`http://localhost:8000/addMember/${teamId}`, {
+          const res = await fetch(`https://task-api-5zuk.onrender.com/addMember/${teamId}`, {
             method: "POST", headers: authHeaders(),
             body: JSON.stringify({ email: email.trim(), role, team_id: teamId }),
           });

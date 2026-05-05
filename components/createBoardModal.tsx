@@ -40,7 +40,7 @@ export default function CreateBoardModal({
         setError("");
 
         try {
-            const res = await fetch(`http://localhost:8000/board/${isPersonalBoard ? user?.id : teamID}`, {
+            const res = await fetch(`https://task-api-5zuk.onrender.com/board/${isPersonalBoard ? user?.id : teamID}`, {
                 method: "POST",
                 headers: authHeaders(),
                 body: JSON.stringify({ name: name.trim() }),

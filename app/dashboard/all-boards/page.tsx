@@ -48,7 +48,7 @@ export default function AllBoards() {
 
             // map through teams id using promises all to fetch boards for each team in parallel and update state using setBoards(prev => [...prev, ...data]) for each team
             const boardPromises = teams.map((team) =>
-                fetch(`http://localhost:8000/boards?destination_id=${team.id}`, { headers: authHeaders() })
+                fetch(`https://task-api-5zuk.onrender.com/boards?destination_id=${team.id}`, { headers: authHeaders() })
             );
 
             try {
@@ -72,7 +72,7 @@ export default function AllBoards() {
         const fetchBoards = async () => {
             setLoading(true);
             try {
-                const res = await fetch("http://localhost:8000/boards?destination_id=" + user.id, { headers: authHeaders() });
+                const res = await fetch("https://task-api-5zuk.onrender.com/boards?destination_id=" + user.id, { headers: authHeaders() });
                 if (res.status === 401) { router.push("/login"); return; }
                 const data = await res.json();
                 setBoards(prev => [...prev, ...(Array.isArray(data) ? data : [])]);

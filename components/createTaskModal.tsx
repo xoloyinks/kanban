@@ -34,7 +34,7 @@ export default function CreateTaskModal(
           if (category.trim())    payload.category    = category.trim();
           if (dueDate)            payload.due_date     = new Date(dueDate).toISOString();
     
-          const res = await fetch("http://localhost:8000/tasks", {
+          const res = await fetch("https://task-api-5zuk.onrender.com/tasks", {
             method: "POST", headers: authHeaders(), body: JSON.stringify(payload),
           });
           const data = await res.json();

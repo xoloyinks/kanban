@@ -49,7 +49,7 @@ export default function DashboardPage() {
             setLoading(true);
 
             try {
-                const personalBoardsRes = await fetch(`http://localhost:8000/boards?destination_id=${user.id}`, { headers: authHeaders() })
+                const personalBoardsRes = await fetch(`https://task-api-5zuk.onrender.com/boards?destination_id=${user.id}`, { headers: authHeaders() })
                 
                 
 
@@ -58,7 +58,7 @@ export default function DashboardPage() {
                 // 2. Fetch boards for each team
                 const teamBoardResponses = await Promise.all(
                     (user.teams || []).map((tid) =>
-                        fetch(`http://localhost:8000/boards?destination_id=${tid.id}`, {
+                        fetch(`https://task-api-5zuk.onrender.com/boards?destination_id=${tid.id}`, {
                             headers: authHeaders(),
                         }).then(res => res.json())
                     )
@@ -82,7 +82,7 @@ export default function DashboardPage() {
                 if (allBoards.length > 0) {
                     const taskResults = await Promise.all(
                         allBoards.map((b) =>
-                            fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, {
+                            fetch(`https://task-api-5zuk.onrender.com/tasks?board_id=${b.id}&limit=100`, {
                                 headers: authHeaders(),
                             })
                                 .then((r) => r.json() as Promise<PaginatedTasks>)

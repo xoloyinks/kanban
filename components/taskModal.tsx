@@ -48,7 +48,7 @@ export default function TaskModal(
           if (category !== task.category) payload.category = category;
           if (columnId !== task.column?.id) payload.column_id = columnId;
     
-          const res = await fetch(`http://localhost:8000/tasks/${task.id}`, {
+          const res = await fetch(`https://task-api-5zuk.onrender.com/tasks/${task.id}`, {
             method: "PATCH", headers: authHeaders(), body: JSON.stringify(payload),
           });
           if (res.ok) {
@@ -62,7 +62,7 @@ export default function TaskModal(
         if (!task) return;
         setDeleting(true);
         try {
-          const res = await fetch(`http://localhost:8000/tasks/${task.id}`, { method: "DELETE", headers: authHeaders() });
+          const res = await fetch(`https://task-api-5zuk.onrender.com/tasks/${task.id}`, { method: "DELETE", headers: authHeaders() });
           if (res.ok) { onDeleted(task.id); onClose(); }
         } finally { setDeleting(false); }
       };

@@ -24,7 +24,7 @@ export default function EditTeamModal({
         if (!team) return;
         setLoading(true); setError("");
         try {
-          const res = await fetch(`http://localhost:8000/teams/${team.id}`, {
+          const res = await fetch(`https://task-api-5zuk.onrender.com/teams/${team.id}`, {
             method: "PATCH", headers: authHeaders(),
             body: JSON.stringify({ name: name.trim(), description: desc.trim() }),
           });

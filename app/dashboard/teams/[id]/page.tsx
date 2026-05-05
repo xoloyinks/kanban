@@ -50,7 +50,7 @@ const CreateBoardModal = ({
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch("http://localhost:8000/boards", {
+      const res = await fetch("https://task-api-5zuk.onrender.com/boards", {
         method: "POST", headers: authHeaders(),
         body: JSON.stringify({ name: name.trim(), destination_id: teamId }),
       });
@@ -143,8 +143,8 @@ export default function TeamPage() {
     setLoading(true);
     try {
       const [teamRes, boardsRes] = await Promise.all([
-        fetch(`http://localhost:8000/teams/${teamId}`, { headers: authHeaders() }),
-        fetch(`http://localhost:8000/boards?destination_id=${teamId}`, { headers: authHeaders() }),
+        fetch(`https://task-api-5zuk.onrender.com/teams/${teamId}`, { headers: authHeaders() }),
+        fetch(`https://task-api-5zuk.onrender.com/boards?destination_id=${teamId}`, { headers: authHeaders() }),
       ]);
       if (teamRes.status === 401) { router.push("/login"); return; }
       if (teamRes.status === 404) { router.push("/dashboard"); return; }
@@ -162,7 +162,7 @@ export default function TeamPage() {
   const handleRemoveMember = async (memberId: string) => {
     setRemovingMember(memberId);
     try {
-      const res = await fetch(`http://localhost:8000/teams/${teamId}/members/${memberId}`, {
+      const res = await fetch(`https://task-api-5zuk.onrender.com/teams/${teamId}/members/${memberId}`, {
         method: "DELETE", headers: authHeaders(),
       });
       if (res.ok) {
@@ -187,7 +187,7 @@ export default function TeamPage() {
   const handleDeleteTeam = async () => {
     setDeletingTeam(true);
     try {
-      const res = await fetch(`http://localhost:8000/teams/${teamId}`, {
+      const res = await fetch(`https://task-api-5zuk.onrender.com/teams/${teamId}`, {
         method: "DELETE", headers: authHeaders(),
       });
       if (res.ok) router.push("/dashboard");

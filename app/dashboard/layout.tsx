@@ -35,8 +35,6 @@ export default function RootLayout({
         setUser(data);
     }, [mounted, router, data]);
 
-    console.log(user)
-
     useEffect(() => {
         if (!user) return;
 

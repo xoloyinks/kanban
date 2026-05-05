@@ -55,7 +55,7 @@ export default function MyTasksPage() {
       // 2. Fetch boards in parallel
       const boardResults = await Promise.all(
         destinations.map((id) =>
-          fetch(`http://localhost:8000/boards?destination_id=${id}`, {
+          fetch(`https://task-api-5zuk.onrender.com/boards?destination_id=${id}`, {
             headers: authHeaders(),
           })
             .then((r) => {
@@ -85,7 +85,7 @@ export default function MyTasksPage() {
       // 4. Fetch tasks for all boards
       const taskResults = await Promise.all(
         boardList.map((b) =>
-          fetch(`http://localhost:8000/tasks?board_id=${b.id}&limit=100`, {
+          fetch(`https://task-api-5zuk.onrender.com/tasks?board_id=${b.id}&limit=100`, {
             headers: authHeaders(),
           })
             .then((r) => r.json() as Promise<PaginatedTasks>)
@@ -161,7 +161,7 @@ export default function MyTasksPage() {
     const completedCol = columns.find((c) => c.name.toLowerCase() === "completed" && c.board_id === task.board_id);
     if (!completedCol) return;
     try {
-      await fetch(`http://localhost:8000/tasks/${task.id}`, {
+      await fetch(`https://task-api-5zuk.onrender.com/tasks/${task.id}`, {
         method: "PATCH", headers: authHeaders(),
         body: JSON.stringify({ board_id: task.board_id, column_id: completedCol.id }),
       });

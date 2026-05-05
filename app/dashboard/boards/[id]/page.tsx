@@ -63,7 +63,7 @@ export default function BoardPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch(`http://localhost:8000/boards/${boardId}`, { headers: authHeaders() })
+    fetch(`https://task-api-5zuk.onrender.com/boards/${boardId}`, { headers: authHeaders() })
       .then((r) => { if (r.status === 401) router.push("/login"); return r.ok ? r.json() : null; })
       .then((d) => d && setBoard(d))
       .catch(console.error);
@@ -74,7 +74,7 @@ export default function BoardPage() {
     if (!user) return;
     setLoading(true);
     try {
-      let url = `http://localhost:8000/tasks?board_id=${boardId}&limit=100`;
+      let url = `https://task-api-5zuk.onrender.com/tasks?board_id=${boardId}&limit=100`;
       if (filterPriority) url += `&priority=${filterPriority}`;
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
       const res = await fetch(url, { headers: authHeaders() });
@@ -99,7 +99,7 @@ export default function BoardPage() {
 
     const connect = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/stream?board_id=${boardId}`, {
+        const res = await fetch(`https://task-api-5zuk.onrender.com/stream?board_id=${boardId}`, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${getToken()}`,
@@ -256,7 +256,7 @@ export default function BoardPage() {
 
       if (!targetCol) {
         // column doesn't exist for this board yet — create it
-        const colRes = await fetch("http://localhost:8000/columns", {
+        const colRes = await fetch("https://task-api-5zuk.onrender.com/columns", {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({ board_id: boardId, name: targetColName }),
@@ -275,7 +275,7 @@ export default function BoardPage() {
       }
 
       // 2. update task with new column_id
-      const res = await fetch(`http://localhost:8000/tasks/${taskId}`, {
+      const res = await fetch(`https://task-api-5zuk.onrender.com/tasks/${taskId}`, {
         method: "PATCH",
         headers: authHeaders(),
         body: JSON.stringify({ board_id: task.board_id, column_id: targetCol.id }),
@@ -296,7 +296,7 @@ export default function BoardPage() {
 
   const handleRenameColumn = async (id: string, name: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/columns/${id}`, {
+      const res = await fetch(`https://task-api-5zuk.onrender.com/columns/${id}`, {
         method: "PATCH", headers: authHeaders(), body: JSON.stringify({ name }),
       });
       if (res.ok) {

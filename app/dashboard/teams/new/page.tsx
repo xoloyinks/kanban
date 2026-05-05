@@ -96,7 +96,7 @@ export default function NewTeamPage() {
       if (members.length > 0) {
         await Promise.allSettled(
           members.map((m) =>
-            fetch(`http://localhost:8000/addMember/${teamData?.id}`, {
+            fetch(`https://task-api-5zuk.onrender.com/addMember/${teamData?.id}`, {
               method: "POST",
               headers: authHeaders(),
               body: JSON.stringify({ email: m.email, role: m.role }),

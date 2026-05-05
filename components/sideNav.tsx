@@ -39,10 +39,6 @@ export default function SideNav(
     const path = usePathname();
 
     const [selectedTeam, setSelectedTeam] = React.useState<Team | null>(null);
-
-
-    console.log("teams in side nav:", selectedTeam);
-
     const handleTeamSelect = (team: Team) => {
         setSelectedTeam(team);
         router.push(team ? `/dashboard/teams/${team.id}` : "/dashboard");
