@@ -112,7 +112,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
           >
-            <Link href="/register">
+            <Link href="/auth/register">
               <motion.span
                 className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-linear-to-r from-violet-600 to-cyan-600 text-white font-semibold text-sm relative overflow-hidden"
                 whileHover={{ scale: 1.03 }}
@@ -607,7 +607,7 @@ export default function LandingPage() {
                   Join over 1,200 teams using TaskFlow to manage their work in real time.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Link href="/register">
+                  <Link href="/auth/register">
                     <motion.span
                       className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-linear-to-r from-violet-600 to-cyan-600 text-white font-bold text-base relative overflow-hidden"
                       whileHover={{ scale: 1.04 }}
