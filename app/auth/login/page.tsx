@@ -389,17 +389,6 @@ export default function LoginPage() {
             </motion.p>
           </div>
         </motion.div>
-
-        {/* Bottom tag */}
-        <motion.p
-          className="text-center text-white/20 text-xs mt-6"
-          style={{ fontFamily: "'DM Mono', monospace" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.9 }}
-        >
-          Secured with JWT · v1.0
-        </motion.p>
       </motion.div>
     </div>
   );
